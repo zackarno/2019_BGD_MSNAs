@@ -1,11 +1,11 @@
-host_hh<-HH_yes_consent
-host_indiv<-indiv_yes_consent
-
-ref_hh<-HH_yes_consent
-ref_indiv<-indiv_yes_consent
-
-hh_data<-ref_hh
-individual_data<-ref_indiv
+# host_hh<-HH_yes_consent
+# host_indiv<-indiv_yes_consent
+# 
+# ref_hh<-HH_yes_consent
+# ref_indiv<-indiv_yes_consent
+# 
+# hh_data<-ref_hh
+# individual_data<-ref_indiv
 
 # indiv_data<-host_indiv
 recode_SNFI_severity_bgd2019<-name <- function(hh_data,individual_data, population) {
@@ -118,6 +118,7 @@ recode_SNFI_severity_bgd2019<-name <- function(hh_data,individual_data, populati
   }
 
   if(population=="Host"){
+    HH_rec_step1$shelter_typology<-calculate_shelter_typology(HH_rec_step1)
 
     sustainable_income_sources<-c("income_source.employment", "income_source.agricultural_production_sale", 
                                  "income_source.gather_sell_firewood", "income_source.social_safety_net")

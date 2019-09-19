@@ -17,7 +17,7 @@ library(anytime)
 library(srvyr)
 library(forcats)
 # library(nngeo)
- 
+
 source("Functions/ActivatePaths.R")
 source("Functions/make_composite_indicators_bgd_msna_2019.R")
 
@@ -126,13 +126,13 @@ HH_svy_ob<-map_to_design(data=HH_data_factorized, weighting_function = weighting
 
 
 Indiv_with_relevant_HH_data<-Indiv_with_composite %>% left_join(HH_svy_ob$variables %>% 
-                      mutate(weights= weights(HH_svy_ob)) %>% 
-                      select(X_uuid,{strata},respondent_gender,weights), by=c("X_submission__uuid"="X_uuid"))
+                                                                  mutate(weights= weights(HH_svy_ob)) %>% 
+                                                                  select(X_uuid,{strata},respondent_gender,weights), by=c("X_submission__uuid"="X_uuid"))
 
 ind_svy_ob<-survey::svydesign(ids = ~ 1,
-                  strata =  formula(paste0("~",strata)),
-                  weights= ~weights,
-                  data = Indiv_with_relevant_HH_data)
+                              strata =  formula(paste0("~",strata)),
+                              weights= ~weights,
+                              data = Indiv_with_relevant_HH_data)
 
 
 
@@ -145,18 +145,18 @@ HH_svy_ob$variables$I.HH_CHAR.childheaded_households.HH<-forcats::fct_expand(HH_
 basic_analysis_without_cis<-list()
 # debugonce(butteR::mean_proportion_table)
 basic_analysis_without_cis[["overall"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
-                                                                 list_of_variables = variables_to_analyze,
-                                                                 aggregation_level = NULL,
-                                                                 round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+                                                                       list_of_variables = variables_to_analyze,
+                                                                       aggregation_level = NULL,
+                                                                       round_to = 2,return_confidence = FALSE,na_replace = FALSE)
 basic_analysis_without_cis[["by_strata"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
-                                                                 list_of_variables = variables_to_analyze,
-                                                                 aggregation_level = strata,
-                                                                 round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+                                                                         list_of_variables = variables_to_analyze,
+                                                                         aggregation_level = strata,
+                                                                         round_to = 2,return_confidence = FALSE,na_replace = FALSE)
 
 basic_analysis_without_cis[["by_respondent_gender"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
-                                                                        list_of_variables = variables_to_analyze,
-                                                                        aggregation_level = "respondent_gender",
-                                                                        round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+                                                                                    list_of_variables = variables_to_analyze,
+                                                                                    aggregation_level = "respondent_gender",
+                                                                                    round_to = 2,return_confidence = FALSE,na_replace = FALSE)
 
 
 for(i in 1:length(basic_analysis_without_cis)){
@@ -223,10 +223,10 @@ for(i in 1:length(basic_analysis_without_cis)){
 
 
 
+# INDIVIDUAL SUBSET BY GENDER ---------------------------------------------
 
 subset_by_ind_gender<-dap_break_downs$dap_subsets_indiv %>% filter(subset=="ind_gender") 
 variables_to_analyze<-subset_by_ind_gender$variable %>% trimws()
-
 
 #WE WANT TO SUBSET THIS BY GENDER
 gender_subsets<-split(ind_svy_ob$variables, ind_svy_ob$variables$ind_gender)
@@ -236,9 +236,9 @@ analyzed_by_respondent_gender<-list()
 analyzed_by_camp<-list()
 for(subset_group in names(gender_subsets)){
   new_design<-survey::svydesign(ids = ~ 1,
-                    strata = formula(paste0("~",strata)),
-                    weights= ~weights,
-                    data = gender_subsets[[subset_group]])
+                                strata = formula(paste0("~",strata)),
+                                weights= ~weights,
+                                data = gender_subsets[[subset_group]])
   analyzed_overall[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
                                                                     list_of_variables = variables_to_analyze,
                                                                     aggregation_level = NULL,
@@ -265,6 +265,43 @@ for(analysis_name in names(analysis_by_ind_gender)){
 }
 
 
+# INDIVIDUAL SUBSET BY EDUCATION AGE GROUPS -------------------------------
+
+
+
+subset_groups<-split(dap_break_downs$dap_subsets_indiv,dap_break_downs$dap_subsets_indiv$subset)
+
+for (i in 1: length(subset_groups)){
+  print(paste0 ("i =" ,i))
+  working_group_to_subset<-subset_groups[[i]]
+  name_working_group_to_subset<-names(subset_groups)[i]
+  variables_to_analyze<-working_group_to_subset$variable %>% trimws()
+  list_of_subsets<-split(ind_svy_ob$variables, ind_svy_ob$variables[[name_working_group_to_subset]])
+  # list_of_subsets[lapply(list_of_subsets, length) > 0]
+  for(j in 1 : length(list_of_subsets)){
+    name_subset_looping<-names(list_of_subsets)[j]
+    
+    print(paste0 ("j =" ,name_subset_looping))
+    new_design<-survey::svydesign(ids = ~ 1,
+                                  strata = formula(paste0("~",strata)),
+                                  weights= ~weights,
+                                  data = list_of_subsets[[name_subset_looping]])
+    analyzed_overall[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
+                                                                      list_of_variables = variables_to_analyze,
+                                                                      aggregation_level = NULL,
+                                                                      round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+    analyzed_by_camp[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
+                                                                      list_of_variables = variables_to_analyze,
+                                                                      aggregation_level = strata,
+                                                                      round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+    analyzed_by_respondent_gender[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
+                                                                                   list_of_variables = variables_to_analyze,
+                                                                                   aggregation_level = "respondent_gender",
+                                                                                   round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+  } 
+  
+  
+}
 
 
 # Table of weights  -------------------------------------------------

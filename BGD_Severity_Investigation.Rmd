@@ -19,6 +19,7 @@ knitr::opts_chunk$set(echo = TRUE,
                       out.width = "100%")
 
 rm(list=ls())
+user<-"zack"
 population<-c("Host","Refugee")[2]
 data_process<-c("checking", "cleaning", "analysis")[3]
 
@@ -72,8 +73,7 @@ indiv_yes_consent<-Indiv %>% filter(X_submission__uuid %in% HH_yes_consent$X_uui
 
 composite_indicators<-make_composite_indicators_bgd_msna_2019(hh_data = HH_yes_consent,  individual_data = indiv_yes_consent,population = population)
 
-
-HH_with_composite<-HH_yes_consent %>% left_join(composite_indicators,by="X_uuid")
+HH_with_composite<-HH_yes_consent %>% left_join(composite_indicators$household_composites,by="X_uuid")
 
 HH_with_composite<-butteR::remove_concat_select_multiple(HH_with_composite,questionnaire = HH_kobo_questionnaire)
 
@@ -152,8 +152,8 @@ HH_srv$variables[,severity_components]<-lapply(HH_srv$variables[,severity_compon
 HH_srv$variables[,severity_sector_finals]<-lapply(HH_srv$variables[,severity_sector_finals], as.factor)
 HH_srv$variables[,severity_sector_finals]<-lapply(HH_srv$variables[,severity_sector_finals], function(x)forcats::fct_expand(x,"1","2", "3", "4","5") %>% fct_relevel("1","2", "3", "4","5"))
 
-stratified_severities_over3<-butteR::barplot_grouped_binaries(design = HH_srv,list_of_variables = severity_totals_over_3,aggregation_level = strata )
-stratified_severities_over3
+# stratified_severities_over3<-butteR::barplot_grouped_binaries(design = HH_srv,list_of_variables = severity_totals_over_3,aggregation_level = strata )
+# stratified_severities_over3
 
 ```
 
