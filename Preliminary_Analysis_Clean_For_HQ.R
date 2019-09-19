@@ -2,7 +2,7 @@
 
 rm(list=ls())
 user<-c("zack", "mehedi")[1]
-population<-c("Host","Refugee")[2]
+population<-c("Host","Refugee")[1]
 data_process<-c("checking", "cleaning", "analysis")[3]
 # write_output<-c("yes","no")[1]
 
@@ -32,22 +32,12 @@ HH_kobo_questions<-read.csv(survey_path,stringsAsFactors = FALSE)
 HH_kobo_choices<-read.csv(choices_path, stringsAsFactors = FALSE)
 HH_kobo_questionnaire<-koboquest::load_questionnaire(HH,questions = HH_kobo_questions,choices = HH_kobo_choices, choices.label.column.to.use = "label..english")
 
-#LOAD 2 BASIC DAPS
-dap1<- read.csv("Inputs/DAPs/MSNA_DAP_BasicAnalysis_simple_18Sept.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA))
-dap2<-read.csv("Inputs/DAPs/MSNA_DAP_BasicAnalysis_SUBSET_ind_gender_18Sept.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+#LOAD DAP
+dap<- read.csv("Inputs/DAPs/MSNA_DAP_BasicAnalysis_All_Changes_Together_19SepMM.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
-dap<-read.csv(dropbox_dap, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
 #LOAD POPULATION DATA
 pop<- read.csv(pop_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
-
-dap$dataset
-#CLEAN AND SPLIT DAP INTO REFUGEE VS HOST COMMUNITY AND INDIVIDUAL VS HH LEVELS
-dap %>% filter(dataset %in% c("ref_only","both"))
-
-dap_strata
-dap_break_downs
-
 
 
 # SPLIT DAP INTO DIFFERNT TYPES OF ANLAYSES -------------------------------
@@ -224,7 +214,7 @@ basic_analysis_without_cis[["by_respondent_gender"]]<-butteR::mean_proportion_ta
                                                                                     aggregation_level = "respondent_gender",
                                                                                     round_to = 2,return_confidence = FALSE,na_replace = FALSE)
 basic_analysis_without_cis$overall
-basic
+
 for(i in 1:length(basic_analysis_without_cis)){
   type_of_analysis<-names(basic_analysis_without_cis)[i]
   date_for_title<-stringr::str_replace_all(Sys.Date(),"-","_")
@@ -235,8 +225,9 @@ for(i in 1:length(basic_analysis_without_cis)){
 
 
 
-#DAP 2 IS ONLY INDIVIDUAL
-variables_to_analyze<- dap2_indiv$variable %>% trimws()
+subset_by_ind_gender<-dap_break_downs$dap_subsets_indiv %>% filter(subset=="ind_gender") 
+variables_to_analyze<-subset_by_ind_gender$variable %>% trimws()
+
 #AGAIN JUST ADD THE "DUMMY" INTEGER SO BUTTER WILL RUN
 variables_to_analyze<-c(variables_to_analyze,"ind_why_notreatment.treatment_expensive")
 
@@ -264,14 +255,14 @@ for(subset_group in names(gender_subsets)){
                                                                                  aggregation_level = "respondent_gender",
                                                                                  round_to = 2,return_confidence = FALSE,na_replace = FALSE)}
 
-dap2_analyzed<-list(overall=analyzed_overall,by_strata=analyzed_by_camp,by_resp_gender=analyzed_by_respondent_gender)
+analysis_by_ind_gender<-list(overall=analyzed_overall,by_strata=analyzed_by_camp,by_resp_gender=analyzed_by_respondent_gender)
 
-for(analysis_name in names(dap2_analyzed)){
-  male_ind_gender<-dap2_analyzed[[analysis_name]][["male"]]
-  female_ind_gender<-dap2_analyzed[[analysis_name]][["female"]]
+for(analysis_name in names(analysis_by_ind_gender)){
+  male_ind_gender<-analysis_by_ind_gender[[analysis_name]][["male"]]
+  female_ind_gender<-analysis_by_ind_gender[[analysis_name]][["female"]]
   date_for_title<-stringr::str_replace_all(Sys.Date(),"-","_")
-  name_of_file_male<-paste0(date_for_title,"_",population,"_Indiv_DAP2_SUBSET_ind_gender_male_",type_of_analysis, ".csv")
-  name_of_file_female<-paste0(date_for_title,"_",population,"_Indiv_DAP2_SUBSET_ind_gender_female_",analysis_name, ".csv")
+  name_of_file_male<-paste0(date_for_title,"_",population,"_Indiv_SUBSET_by_ind_gender_male_",type_of_analysis, ".csv")
+  name_of_file_female<-paste0(date_for_title,"_",population,"_Indiv_SUBSET_by_ind_gender_female_",analysis_name, ".csv")
   write.csv(male_ind_gender,paste0("Outputs/",name_of_file_male) )
   write.csv(female_ind_gender,paste0("Outputs/",name_of_file_female) )
 }

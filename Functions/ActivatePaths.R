@@ -18,6 +18,7 @@ if(user=="zack"){
       sf_pop<-'HH_pop'
       strata_boundary_layer<-"BGD_Teknaf_Ukhia_Unions"
       dap_population_name<-"hc_only" 
+      sf_strata<- "Union"
     }
     if( data_process=="checking"){
       HH_path<-"Inputs/Host_Community/02_data_collection/HH_HC_MSNA.csv"
@@ -37,7 +38,7 @@ if(user=="zack"){
     target_points_gdb<- "GIS/Sampling/Host_Community/R1/HC_MSNA_R1_Comprehensive.kml"
     target_points<-readOGR(target_points_gdb,"HC_MSNA_R1_Comprehensive")
     
-    pop_path<-"Inputs/Host_Community/03_data_analysis/Population_Figures_2011_Census_HostCommunity.csv"
+
     
     
     ###################
@@ -62,6 +63,7 @@ if(user=="zack"){
     buffer<-50    }
     survey_path<-"Inputs/Host_Community/02_data_collection/04_tool/HostCommunity_MSNA2019_tool_survey.csv"
     choices_path<- "Inputs/Host_Community/02_data_collection/04_tool/HostCommunity_MSNA2019_tool_choices.csv"
+    pop_path<-"Inputs/Host_Community/03_data_analysis/Population_Figures_2011_Census_HostCommunity.csv"
 
     
   }
@@ -96,7 +98,7 @@ if(user=="zack"){
     HH_sensitive_info_removed_path<-paste0("D:/Dropbox/REACH_BGD\\REACH\\Ongoing\\70DQR - Joint MSNAs\\in-depth MSNAs\\02 Workplan and Data Collection\\02_Refugee\\02_data_collection/daily_data/", str_replace_all(ymd(Sys.Date()-2),"-","_"),"_HH_Data.csv")
     Indiv_sensitive_info_removed_path<-paste0("D:/Dropbox/REACH_BGD\\REACH\\Ongoing\\70DQR - Joint MSNAs\\in-depth MSNAs\\02 Workplan and Data Collection\\02_Refugee\\02_data_collection/daily_data/", str_replace_all(ymd(Sys.Date()-2),"-","_"),"_INDIV_Data.csv")
     samples_required_data_path<-"Inputs/Refugee/03_sampling/03_sample_requests_pop_numbers/kmz_sample_request_template - sample_by_camp_msna2019.csv"
-    pop_path<-"Inputs/Refugee/04_data_analysis/01_population_figures/july2019_unhcr_pop_numbers.csv"
+    
     
     
     path_unzip <- "Inputs/Refugee/02_data_collection/98_temp"
@@ -121,6 +123,7 @@ if(user=="zack"){
     buffer<-25
     referral_path<-"D:/Dropbox/REACH_BGD\\REACH\\Ongoing\\70DQR - Joint MSNAs\\in-depth MSNAs\\02 Workplan and Data Collection\\02_Refugee\\02_data_collection\\aux_outputs/referrals/"
     }
+    pop_path<-"Inputs/Refugee/04_data_analysis/01_population_figures/july2019_unhcr_pop_numbers.csv"
     survey_path<-"Inputs/Refugee/02_data_collection/04_tool/Refugee_MSNA2019_tool_survey.csv"
     choices_path<-"Inputs/Refugee/02_data_collection/04_tool/Refugee_MSNA2019_tool_choices.csv"}
  
