@@ -37,7 +37,7 @@ dap1<- read.csv("Inputs/DAPs/MSNA_DAP_BasicAnalysis_simple_18Sept.csv", stringsA
 dap2<-read.csv("Inputs/DAPs/MSNA_DAP_BasicAnalysis_SUBSET_ind_gender_18Sept.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
 dap<-read.csv(dropbox_dap, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
-View(dap)
+
 #LOAD POPULATION DATA
 pop<- read.csv(pop_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
@@ -45,52 +45,45 @@ dap$dataset
 #CLEAN AND SPLIT DAP INTO REFUGEE VS HOST COMMUNITY AND INDIVIDUAL VS HH LEVELS
 dap %>% filter(dataset %in% c("ref_only","both"))
 
+dap_strata
 dap_break_downs
 
-if(population=="Refugee"){
-  dap_break_downs<-list()
-  dap_break_downs$dap_basic_hh<-dap %>%
-    filter(is.na(disaggregation)) %>% 
-    filter(dataset %in% c("ref_only","both")) %>% 
-    filter(level=="household")
-  
-  dap_break_downs$dap_basic_indiv<-dap %>%
-    filter(is.na(disaggregation)) %>% 
-    filter(dataset %in% c("ref_only", "both")) %>% 
-    filter(level=="individual")
-  
-  dap_break_downs$dap_subsets_hh <-dap %>%
-    filter(!is.na(subset)) %>% 
-    filter(dataset %in% c("ref_only", "both")) %>%
-    filter(level=="household") %>% 
-      group_by(subset)
-  dap_break_downs$dap_subsets_indiv <-dap %>%
-    filter(!is.na(subset)) %>% 
-    filter(dataset %in% c("ref_only", "both")) %>%
-    filter(level=="individual") %>% 
-    group_by(subset)
-  dap_break_downs$dap_composite_hh<-dap %>% 
-    filter(!is.na(subset)) %>% 
-    filter(dataset %in% c("ref_only", "both")) %>%
-    filter(level=="household")
-  dap_break_downs$dap_composite_indiv<-dap %>% 
-    filter(!is.na(subset)) %>% 
-    filter(dataset %in% c("ref_only", "both")) %>%
-    filter(level=="individual")
-  }
 
 
-if(population=="Host"){
-  dap1_hh<-dap1 %>% 
-    filter(dataset %in% c("hc_only", "both")) %>% 
-    filter(level=="household")
-  dap1_indiv<-dap1 %>% 
-    filter(dataset %in% c("hc_only", "both")) %>% 
-    filter(level=="individual")
-  
-  dap2_indiv <-dap2%>% 
-    filter(dataset %in% c("hc_only", "both")) 
-}
+# SPLIT DAP INTO DIFFERNT TYPES OF ANLAYSES -------------------------------
+
+dap_break_downs<-list()
+dap_break_downs$dap_basic_hh<-dap %>%
+  filter(is.na(disaggregation)) %>% 
+  filter(dataset %in% c(dap_population_name,"both")) %>% 
+  filter(level=="household")
+
+dap_break_downs$dap_basic_indiv<-dap %>%
+  filter(is.na(disaggregation)) %>% 
+  filter(dataset %in% c(dap_population_name, "both")) %>% 
+  filter(level=="individual")
+
+dap_break_downs$dap_subsets_hh <-dap %>%
+  filter(!is.na(subset)) %>% 
+  filter(dataset %in% c(dap_population_name, "both")) %>%
+  filter(level=="household") %>% 
+  group_by(subset)
+dap_break_downs$dap_subsets_indiv <-dap %>%
+  filter(!is.na(subset)) %>% 
+  filter(dataset %in% c(dap_population_name, "both")) %>%
+  filter(level=="individual") %>% 
+  group_by(subset)
+dap_break_downs$dap_composite_hh<-dap %>% 
+  filter(!is.na(subset)) %>% 
+  filter(dataset %in% c(dap_population_name, "both")) %>%
+  filter(level=="household")
+dap_break_downs$dap_composite_indiv<-dap %>% 
+  filter(!is.na(subset)) %>% 
+  filter(dataset %in% c(dap_population_name, "both")) %>%
+  filter(level=="individual")
+
+
+
 
 
 

@@ -17,7 +17,7 @@ if(user=="zack"){
       strata<- "union_name" 
       sf_pop<-'HH_pop'
       strata_boundary_layer<-"BGD_Teknaf_Ukhia_Unions"
-      dap_strata<-"hc_only" 
+      dap_population_name<-"hc_only" 
     }
     if( data_process=="checking"){
       HH_path<-"Inputs/Host_Community/02_data_collection/HH_HC_MSNA.csv"
@@ -84,7 +84,7 @@ if(user=="zack"){
       sf_pop<-'Total.Families'
       sf_strata<-"camp_id"
       strata_boundary_layer<-"190310_Outline_Rohingya_Refugee_Camp_A1"
-      dap_strata<-"ref_only" 
+      dap_population_name<-"ref_only" 
       
     }
     if (data_process== "checking") {
