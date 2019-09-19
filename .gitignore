@@ -1,0 +1,69 @@
+# History files
+.Rhistory
+.Rapp.history
+
+# Session Data files
+.RData
+
+# Example code in package build process
+*-Ex.R
+
+# Output files from R CMD build
+/*.tar.gz
+
+# Output files from R CMD check
+/*.Rcheck/
+
+# RStudio files
+.Rproj.user/
+
+# produced vignettes
+vignettes/*.html
+vignettes/*.pdf
+
+# OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
+.httr-oauth
+
+# knitr and R markdown default cache directories
+/*_cache/
+/cache/
+
+# Temporary files created by R markdown
+*.utf8.md
+*.knit.md
+
+# Shiny token, see https://shiny.rstudio.com/articles/shinyapps.html
+rsconnect/
+#GIS files
+
+/GIS/*
+# data files
+
+/Inputs/GIS/* 
+#refugee data collection
+/Inputs/Refugee/02_data_collection/*
+/Inputs/Refugee/02_pilot/*
+/Inputs/Refugee/03_sampling/*
+/Inputs/Refugee/data_cleaning/*
+
+/Inputs/Refugee/04_data_analysis/20190902_HH_Refugee_Cleaned_20190904.csv
+/Inputs/Refugee/04_data_analysis/20190902_Indiv_Refugee_Cleaned_20190904.csv
+/Inputs/Refugee/04_data_analysis/cleaned_data
+
+/Outputs/*
+/Inputs/Host_Community/01_pilot/*
+/Inputs/Host_Community/02_data_collection/*
+/Inputs/Host_Community/02_data_collection/*
+/Inputs/Host_Community/04_data_cleaning/*
+/Inputs/Host_Community/04_data_cleaning/cleaned_datasets/*
+Inputs/Host_Community/03_data_analysis/cleaned_datasets/* 
+01_HostCommunity_Sampling.R
+/Inputs/Host_Community/03_data_analysis/20190909_HH_HostCommunity_Cleaned_20190911.csv
+/Inputs/Host_Community/03_data_analysis/20190909_Indiv_HostCommunity_Cleaned_20190911.csv
+/recoding_output_file/*
+04_Refugee_Sampling_R2_and_on.R
+#machine specific script 
+/Functions/ActivatePaths.R
+/Functions/input_location.R
+20190915_HH_Refugee_Cleaned_20190917.csv
+20190915_Indiv_Refugee_Cleaned_20190917.csv
