@@ -1,0 +1,560 @@
+---
+title: "MSNA 2019"
+author: "BGD GIS DATA UNIT"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+---
+
+```{r setup, include=FALSE, warning = FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message=FALSE,
+                      warning = FALSE)
+
+population<-c("Host","Refugee")[2]
+write_output<-c("yes","no")[1]
+
+
+
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(lubridate)
+library(rgdal)
+library(HighFrequencyChecks)
+library(kableExtra)
+library(gsubfn)
+library(stringi)
+library(sf)
+library(data.table)
+source("Functions/GIS_Project_Functions.R")
+source("Functions/Load_Audit.R")
+source("Functions/get_na_response_rates.R")
+source("Functions/ActivatePaths.R")
+
+
+
+
+zip_download_info <- fileSnapshot(audit_zip_dir)
+audit_zipfile<-paste0(audit_zip_dir,"/", rownames(zip_download_info$info[which.max(zip_download_info$info$mtime),]))
+
+#LOAD IN GIS DATA
+boundary_gdb<- "Inputs/GIS"
+unions<-readOGR(boundary_gdb,"BGD_Teknaf_Ukhia_Unions")
+camp_blocks<-readOGR(boundary_gdb,"190310_Outline_Rohingya_Refugee_CampBlock_A2")
+camp_blocks<-spTransform(camp_blocks,CRS(proj4string(unions)))
+
+mahjee_blocks<-readOGR(boundary_gdb,"NPM-R14-SA_20190312")
+
+strata_spatial<-readOGR(boundary_gdb,"190310_Outline_Rohingya_Refugee_Camp_A1")
+
+
+HH<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+Indiv<-read.csv(Indiv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+SampleSize<- read.csv(samples_required_data_path, stringsAsFactors = FALSE,na.strings=c("", " ", NA))
+
+
+  
+#REQUIRED ONLY THE FIRST DAY OF DATA COLLECTION
+############################################################
+# HH$reported_date<-Sys.Date()
+# todays_date_log<- HH %>% select(X_index, reported_date)
+# write.csv(todays_date_log,date_log_path, row.names=FALSE)
+#############################################################
+date_log<-read.csv(date_log_path, stringsAsFactors = FALSE, 
+                   na.strings = c("", " ", NA))
+
+
+# date_log$reported_date <-dmy(date_log$reported_date )
+date_log$reported_date <-ymd(date_log$reported_date )
+
+HH<-HH %>% dplyr::left_join(date_log, by= "X_index") 
+HH<-HH %>% 
+  mutate(
+    reported_date=if_else(is.na(reported_date), Sys.Date(), reported_date)
+  ) 
+
+date_log_full<- HH %>% select(X_index,reported_date)
+
+
+
+#CORRECT SPATIAL ATTRIBUTES
+########################################################################
+
+long_lat<-c("X_gps_reading_longitude","X_gps_reading_latitude")
+#REMOVE SENSITIVE DATA (GPS) AND CORRECT UNIONS TO BOUNDARIES?
+
+HH_spatial<-HH
+coordinates(HH_spatial)<-long_lat
+proj4string(HH_spatial)<-proj4string(unions)
+
+if( population=="Host"){
+  HH_corrected_spatial<-spatial_join(HH_spatial, unions)
+  HH_corrected_spatial_df<- data.frame(coordinates(HH_corrected_spatial),HH_corrected_spatial@data)
+  HH_Desensitized<-HH_corrected_spatial_df %>% select(-contains("gps")) %>% select(-(adm2_en:lab_rot))
+}
+#WILL NEED TO FIX GHIS ONCE WE GET SOME MORE DATA
+##########################################################################
+if(population=="Refugee"){
+  HH_corrected_spatial<-spatial_join(HH_spatial, strata_spatial)
+  HH_corrected_spatial_df<- data.frame(coordinates(HH_corrected_spatial),HH_corrected_spatial@data)
+  HH_referrals_cmp_block<- spatial_join(HH_corrected_spatial[!is.na(HH_corrected_spatial$referral_ID),], camp_blocks)
+  referrals_block_and_mahj<-spatial_join(HH_referrals_cmp_block, mahjee_blocks)
+  referrals_desensitized<- referrals_block_and_mahj@data %>% 
+    select(-contains("gps")) %>% 
+    select(X_uuid,
+           reported_date,
+           enumerator_id,
+           starts_with("referral"), 
+           camp_id= New_Camp_N,
+           iscg_block_id=Block_ID,
+           mahjee_block_id=LocalBlock
+           )
+  HH_Desensitized<-HH_corrected_spatial_df %>% select(-contains("gps")) %>% select(-(Name_Alias:X_count))
+
+}
+
+#WRITE DESENSITIZED DATA TO DROPBOX
+
+
+
+HH_yes_consent<- HH_corrected_spatial_df %>% filter(informed_consent== "yes")
+HH_today_yes_consent<-HH_yes_consent %>% filter(reported_date==Sys.Date())
+HH_new<-HH_corrected_spatial_df
+
+Indiv_yes_consent<- Indiv %>% filter(X_submission__uuid %in% HH_yes_consent$X_uuid)
+
+
+consent<- "informed_consent"
+mindur<-26 #change to 26 from 35
+
+
+
+```
+
+# `r ifelse(population=="Host","Host Community", "Refugees")`
+
+##GIS CHECKS
+
+
+Points > **`r buffer`** meters away from the random sample points
+
+```{r}
+
+
+if(population=="Host"){
+reportcol2<-c("enumerator_id","X_uuid", "union_name")
+}
+if(population=="Refugee"){
+  reportcol2<-c("enumerator_id","X_uuid", "New_Camp_N")
+}
+#NEED GSUBFN PACKAGE
+# list[dts,err]<-chk1dii_GIS_Xm(target_points, HH, long_lat, buffer, consent, reportcol2, TRUE)
+list[dataset,outside_buffer]<-chk1dii_GIS_Xm(target_points, HH_corrected_spatial_df, long_lat, buffer, consent, reportcol2, TRUE)
+#get distance to closest poitn
+
+#measure distance between poitns
+################################################
+HH_sf<-st_as_sf(HH_corrected_spatial)
+target_sf<-st_as_sf(target_points)
+# FOR DISTANCE CALCULATION
+###########################################################
+dist_list<-list()
+for(i in seq_len(nrow(HH_sf))){
+    closest <- target_sf[which.min(
+    st_distance(target_sf, HH_sf[i,])),]
+    dist_list[[i]]<-data.frame(X_uuid=HH_sf[i, "X_uuid"],dist=st_distance( HH_sf[i,], closest), target_name= closest$Name)
+}
+dist_df<-do.call("rbind", dist_list)
+
+outside_buffer<-outside_buffer %>%
+  left_join(dist_df %>% as.data.frame(), by=c("X_uuid"= "X_uuid.X_uuid" )) %>% select(-X_uuid.geometry)
+
+outside_buffer<-chk1dii_GIS_Xm(target_points, HH_corrected_spatial_df, long_lat, buffer, consent, reportcol2, TRUE)[2]
+############
+
+ outside_buffer %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Problematic Points Based on Location") %>% kable_styling(position = "center")
+# kable(outside_buffer, "latex", longtable = T, booktabs = T, linesep = "", caption= "Problematic Points Based on Location") %>% kable_styling(position = "center")
+```
+
+## TRACKING 
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+
+if(population=="Refugee"){
+tracking_sheet<-HighFrequencyChecks::chk7bii_tracking(ds=dataset,
+                                      sf =SampleSize,dssite =strata,sfsite = sf_strata,
+                                      survcons = "informed_consent",sftarget = "points_needed",
+                                      sfnbpts ="points_w_buffer_needed",
+                                      formul =
+                                        c("done-no-not_eligible-child_head-no_one","done-no-not_eligible-child_head-no_one-points_needed"),
+                                colorder=c("site","points_needed","points_w_buffer_needed","done","not_eligible", "child_head","no","yes","final","variance"))}
+
+if(population=="Host"){
+tracking_sheet<-HighFrequencyChecks::chk7bii_tracking(ds=dataset,
+                                      sf =SampleSize,dssite =strata,sfsite = sf_strata,
+                                      survcons = "informed_consent",sftarget = "points_needed",
+                                      sfnbpts ="points_w_buffer_needed",
+                                      formul =
+                                        c("done-no-not_eligible","done-no-not_eligible-points_needed"),
+                                colorder=c("site","points_needed","points_w_buffer_needed","done","not_eligible", "deleted","no","yes","final","variance"))}
+
+
+simplified_tracking_table<-HH_corrected_spatial_df %>% 
+  group_by_({strata}) %>% 
+  summarise(
+    number_yes= sum(informed_consent=="yes"),
+    number_not_yes= sum(informed_consent!="yes")
+  ) %>% 
+  
+  right_join(SampleSize, by= setNames(sf_strata,strata)) %>% 
+  mutate(points_remaining= points_needed-number_yes) %>% 
+  select({strata},points_needed, points_w_buffer_needed, number_yes,number_not_yes,points_remaining)
+
+
+
+
+simplified_tracking_table%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Simplified Tracking Sheet (no data checks/deletions)") %>% kable_styling(position = "center")
+
+
+tracking_sheet%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Tracking Sheet") %>% kable_styling(position = "center")
+# kable(tracking_sheet, "latex", longtable = T, booktabs = T, linesep = "", caption= "Tracking Sheet") %>% kable_styling(position = "center")
+#IF NOT ALL THREE TYPES OF EDITED CONSENT ARE AVAILABLE
+##################################################################################################################################
+# dataset$adm4_en
+# tracking_sheet<-HighFrequencyChecks::chk7bii_tracking(ds=HH_corrected_spatial_df,
+#                                       sf =SampleSize,dssite ="adm4_en",sfsite = "Union",
+#                                       survcons = "informed_consent",sftarget = "points_needed",
+#                                       sfnbpts ="points_w_buffer_needed",
+#                                       formul =c("done-no-not_eligible-deleted","done-no-not_eligible-deleted-points_needed"),
+#                                 colorder=c("site","points_needed","points_w_buffer_needed","done","not_eligible","no","yes","final","variance"))
+
+######################################################################3
+# wil be a problem if there is not all the consent options in the data set.
+# formul = c("done-no-not_eligible-deleted","done-no-not_eligible-deleted-points_needed"),
+# colorder=c("site","points_needed","points_w_buffer_needed","done","not_eligible","no","yes","final","variance", "deleted"))
+
+```
+
+## Outliers
+### Expenditures 
+
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+if(population=="Refugee"){
+  low_bound<-2
+  low_bound_label<-"2 or less"
+  high_bound<-14
+  high_bound_label<-"over 14"
+}
+if(population=="Host"){
+  low_bound<-4
+  low_bound_label<- "4 or less"
+  high_bound<-13
+  high_bound_label<-"over 13"
+}
+
+
+expenditure_cols<-HH_yes_consent %>%
+  filter() %>% select(starts_with("exp")) %>% colnames() 
+
+
+HH_yes_consent[,expenditure_cols]<-sapply(HH_yes_consent[,expenditure_cols], function(x) ifelse(is.na(x),"0_bdt",x)) %>% data.frame()
+HH_yes_consent[,expenditure_cols]<-sapply(HH_yes_consent[,expenditure_cols], function(x) ifelse(x=="0_bdt", 0, 1)) %>% data.frame()
+
+Expenditure_outliers<-HH_yes_consent %>%
+  mutate(
+  expenditure_type_count=rowSums(.[expenditure_cols],na.rm=TRUE),
+  expenditure_classification= ifelse( expenditure_type_count<=low_bound, low_bound_label,
+                                             ifelse(expenditure_type_count>high_bound, high_bound_label, "other"))
+  ) %>% 
+  filter(expenditure_classification!="other") %>% 
+  select(X_uuid,expenditure_type_count)
+  
+HH_yes_consent %>%
+  mutate(
+  expenditure_type_count=rowSums(.[expenditure_cols],na.rm=TRUE),
+  expenditure_classification= ifelse( expenditure_type_count<=low_bound, low_bound_label,
+                                             ifelse(expenditure_type_count>high_bound, high_bound_label, "other"))
+  ) %>%   
+  ggplot()+geom_histogram(aes(x=expenditure_type_count))
+
+Expenditure_outliers%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Outlier Expenditures") %>% kable_styling(position = "center")
+
+
+```
+
+## Potential Contradictions
+### Health coping and spending
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+health_coping_to_check<-c("health_coping.ghealth_debt", "health_coping.pay_care","health_coping.comm_support")
+HH[,health_coping_to_check]<- sapply(HH[,health_coping_to_check], function(x) ifelse(is.na(x),0,x))
+
+health_coping_contradiction<-HH %>% 
+  mutate(
+    spent_on_medical=ifelse(rowSums(.[health_coping_to_check],na.rm=TRUE)>0,"spent_on_medical", "no_medical_spending"),
+    spent_medical_coping_contradiction=ifelse(spent_on_medical=="spent_on_medical" &
+                                                (exp_medical== "0_bdt"| exp_medical== NA), "contradiction",
+                                              "no_contradiction")
+    ) %>% 
+  filter(spent_medical_coping_contradiction=="contradiction") %>% 
+  select(X_uuid,enumerator_id, exp_medical, spent_on_medical,spent_medical_coping_contradiction) %>% 
+  arrange(enumerator_id)
+
+debt_health_contra2<-HH %>% 
+  mutate(
+    debt_health_contradiction=ifelse(health_coping.ghealth_debt== 1&debt_reason.pay_health_expenses== 0, "yes", "no")
+  ) %>% 
+  filter(debt_health_contradiction=="yes") %>% 
+  select(X_uuid,enumerator_id,health_coping.ghealth_debt, debt_reason.pay_health_expenses,debt_health_contradiction)
+
+debt_reason_columns<-HH %>% select(starts_with("debt_reason.")) %>% colnames()
+any_debt_reason_and_no_debt_expenditures<-HH %>% 
+  mutate(
+    any_debt_reason= ifelse(rowSums(.[debt_reason_columns],na.rm=TRUE)>0,1,0),
+    debt_expense_contradiction= ifelse(any_debt_reason==1 & exp_debt%in% c(NA,"0_bdt"),"yes","no")
+  ) %>% 
+  select(X_uuid,enumerator_id, any_debt_reason,exp_debt,debt_expense_contradiction) %>%
+  filter(debt_expense_contradiction=="yes") %>% 
+  arrange(enumerator_id)
+
+
+health_coping_contradiction%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Health coping and spending") %>% kable_styling(position = "center")
+debt_health_contra2%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Health Debt Issues") %>% kable_styling(position = "center")
+
+
+any_debt_reason_and_no_debt_expenditures%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Any Debt Reason and No Expenditures") %>% kable_styling(position = "center")
+```
+
+### Rent Shelter Contradictions
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+if(population=="Refugee"){ 
+  rent_paid_q<-"shelter_paid"
+}
+if(population=="Host"){
+  rent_paid_q<-"rent_host"  
+}
+
+rent_shelter_contradictions<-HH %>% 
+  mutate(
+    shelter_rent_contra= ifelse(exp_rent %in% c(NA,"0_bdt")& HH[[rent_paid_q]]=="yes", "yes", "no")
+    ) %>% 
+  select(X_uuid,enumerator_id, shelter_rent_contra) %>% 
+  filter(shelter_rent_contra=="yes") %>% 
+  arrange(enumerator_id)
+rent_shelter_contradictions%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Shelter - Rent Issues") %>% kable_styling(position = "center")
+
+shelter_exp_improvement_contradiction<-HH %>% 
+  mutate(
+    shelter_expenditures_contradiction=ifelse((exp_shelter_materials %in% c(NA,"0_bdt")==FALSE) & improvement.none==1, "yes", "no")
+  ) %>% 
+  select(X_uuid,enumerator_id, exp_shelter_materials, improvement.none,shelter_expenditures_contradiction) %>% 
+  filter(shelter_expenditures_contradiction=="yes") 
+shelter_exp_improvement_contradiction%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Shelter Expenditure- Improvement Contradiction") %>% kable_styling(position = "center")
+```
+
+## Durations
+
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE,}
+
+audit_yes<-Load_Audit(data=HH, path.to.zip = audit_zipfile,
+           path.to.unzip = path_unzip,
+           copy.zip = TRUE,
+           path.to.copy.zip = copy_zip_to,
+           delete.unzipped=TRUE
+           )
+
+
+# -	hh_coping_mechanism – enumerators spending less than 2 minutes here
+# -	health_coping  --- enumerators spending less than a minute here
+# -	FSC group (should appear all at once on the screen) – enumerators spending less than a minute here
+# -	enough_water – enumerators spending less than 30 seconds here
+
+dfl<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  start_question<- d %>% filter(node==paste0(audit_node,"informed_consent")& !is.na(event)) %>% 
+    select(end) 
+  start_question<-min(start_question$end)
+  end_question<-d %>% filter(node==paste0(audit_node,"end_note")& !is.na(node)) %>% 
+    select(start)
+  end_question<-max(end_question$start)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  dfl[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+duration_df2<-do.call("rbind", dfl)
+
+htdf<-HH_yes_consent %>%  
+  left_join(duration_df2, by= c("X_uuid"="uuid"))
+
+dfl<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  start_question<- d %>% filter(node==paste0(audit_node,"consent_received[1]/Food_security_Livelihood[1]/hh_coping_mechanism")& !is.na(event)) %>%
+    select(start)
+  start_question<-min(start_question$start)
+  end_question<-d %>% filter(node==paste0(audit_node,"consent_received[1]/Food_security_Livelihood[1]/hh_coping_mechanism")& !is.na(node)) %>%
+    select(end)
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  dfl[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+hh_coping_times<-do.call("rbind", dfl)
+hh_coping_times$question<-"hh_coping_mechanism"
+
+
+dfl<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  start_question<- d %>% filter(node==paste0(audit_node,"consent_received[1]/Health[1]/health_coping")& !is.na(event)) %>%
+    select(start)
+  start_question<-min(start_question$start)
+  end_question<-d %>% filter(node==paste0(audit_node,"consent_received[1]/Health[1]/health_coping")& !is.na(node)) %>%
+    select(end)
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  dfl[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+health_coping<-do.call("rbind", dfl)
+health_coping$question<-"health_coping"
+
+dfl<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  start_question<- d %>% filter(node==paste0(audit_node,"consent_received[1]/WASH[1]/enough_water")& !is.na(event)) %>%
+    select(start)
+  start_question<-min(start_question$start)
+  end_question<-d %>% filter(node==paste0(audit_node,"consent_received[1]/WASH[1]/enough_water")& !is.na(node)) %>%
+    select(end)
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  dfl[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+enough_water<-do.call("rbind", dfl)
+enough_water$question<-"enough_water"
+
+question_specific_times<-do.call("rbind", list(hh_coping_times,health_coping, enough_water))
+
+short_times_on_questions<-question_specific_times %>% 
+  mutate(flag=if_else((duration_minutes<2 & question=="hh_coping_mechanism")|
+                        (duration_minutes<1 & question== "health_coping")|
+                        (duration_secs<30 & question=="enough_water"),1,0)) %>% 
+  filter(flag==1) %>% 
+  select(-flag, -duration_ms) %>% 
+  arrange(uuid, duration_minutes)
+
+short_times_on_questions_table<-short_times_on_questions %>% left_join(HH %>% select(X_uuid, enumerator_id, reported_date), by=c("uuid"="X_uuid")) %>% 
+  select(uuid, enumerator_id, everything())
+
+
+# short_times_on_questions_table%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Short Answer Times") %>% kable_styling(position = "center")
+
+
+
+
+
+```
+
+## DURATION STATISTICS
+Statistics on survey duration are calculated from the audit file and are now correct.
+
+The mean time for a completed questionaire so far is **`r mean(htdf$duration_minutes, na.rm=TRUE)`**.
+
+The median time for a completed questionaire so far is **`r median(htdf$duration_minutes, na.rm=TRUE)`**.
+
+
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+
+# quick_surveys<-htdf[htdf$duration_minutes< mindur,]
+quick_surveys<-htdf %>% filter(duration_minutes<mindur)
+
+
+quick_survey_daily<-quick_surveys %>% group_by(reported_date, enumerator_id) %>% 
+  select(reported_date, enumerator_id, X_uuid,duration_minutes, {strata}) %>% arrange(reported_date)
+
+quick_survey_information<-data.frame(quick_surveys$enumerator_id,quick_surveys$X_uuid, quick_surveys$duration_minutes)
+
+duration_by_enumerator <- htdf %>%
+  mutate(zscore = scale(duration_minutes),
+  zscoreLog = scale(log(duration_minutes))) %>%
+  group_by(enumerator_id) %>%
+  summarise(
+  number_surveys=n(),  
+  mean_duration = mean(duration_minutes, na.rm = TRUE),
+  median_duration = median(duration_minutes, na.rm=TRUE)
+  ) %>%
+  ungroup %>%
+  mutate(
+  difference_from_mean = mean_duration - mean(htdf$duration_minutes,na.rm=TRUE),
+  difference_from_median = median_duration - median(htdf$duration_minutes,na.rm=TRUE)
+  )
+
+# setnames(t,old=c("consent_received.res_18ormore_cont.above_18.num_mem", "consent_received.res_18ormore_cont.camp_satisfaction.water_cont_g.wat_containers_num"), new=c("num_mem","wat_containers_num"))
+# list[dts,err]<-chk5b_duration_Xmin(t, consent, dates, c("enumerator_id", "X_uuid"), mindur, FALSE)
+# HeaderYes<-dts
+# setnames(HeaderYes,old=c("num_mem","wat_containers_num"), new=c("consent_received.res_18ormore_cont.above_18.num_mem", "consent_received.res_18ormore_cont.camp_satisfaction.water_cont_g.wat_containers_num"))
+# kable(err, "latex", longtable = T, booktabs = T, linesep = "") %>% kable_styling(latex_options = c("repeat_header"), position = "center")
+
+quick_survey_daily%>% kable( longtable = T, booktabs = T, linesep = "",caption= paste0("Enumerators That Completed a Full Survey In Less Than ",mindur, " minutes")) %>% kable_styling(position = "center")
+
+# kable(quick_survey_daily, "latex", longtable = T, booktabs = T, linesep = "",
+#       caption=paste0("Enumerators That Completed a Full Survey In Less Than ",mindur, " minutes")) %>% kable_styling(latex_options = c("repeat_header"), position = "center")
+
+duration_by_enumerator%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Duration Statistics By Enumerator (minutes)") %>% kable_styling(position = "center")
+
+
+# kable(duration_by_enumerator, "latex", longtable = T, booktabs = T, linesep = "", caption= "Duration Statistics By Enumerator (minutes)") %>% kable_styling(latex_options = c("repeat_header"), position = "center")
+
+```
+
+
+
+```{r}
+
+if(population=="Refugee"){
+  HH_other<-HH %>% 
+    select(-health_coping.home_treatment_other) %>% 
+    filter_at(vars(ends_with("_other")), any_vars(!is.na(.))) %>% 
+    select(X_uuid,enumerator_id,reported_date, ends_with("_other")) }
+
+if(population=="Host"){
+  HH_other<-HH %>% 
+    filter_at(vars(ends_with("_other")), any_vars(!is.na(.))) %>% 
+    select(X_uuid,enumerator_id,reported_date, ends_with("_other")) }
+  
+
+Indiv_more_data<-Indiv %>% left_join(HH_corrected_spatial_df %>%
+                      select(X_uuid, enumerator_id, reported_date,{strata}), 
+                    by=c("X_submission__uuid"="X_uuid"))
+
+Indiv_other<-Indiv_more_data %>% 
+  filter_at(vars(ends_with("_other")), any_vars(!is.na(.))) %>% 
+  select(X_submission__uuid,enumerator_id,reported_date, ends_with("_other"))
+
+
+
+Na_HH_table<-get_na_response_rates(data=HH_yes_consent)
+Na_Indiv_table<-get_na_response_rates(data=Indiv_yes_consent)
+
+if(write_output=="yes"){
+  source("Functions/WriteOutputToCsvs.R")
+}
+
+
+```
+

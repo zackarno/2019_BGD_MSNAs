@@ -1,0 +1,14 @@
+variable,level,dataset
+ind_ed_TLC,individual,ref_only
+ind_ed_madrassa,individual,ref_only
+ind_ed_nonformal,individual,ref_only
+ind_formal_learning_prev,individual,hc_only
+ind_formal_learning,individual,hc_only
+ind_nonformal_learn,individual,hc_only
+I.EDU.both_formal_informal_edu.INDV,individual,hc_only
+ind_help_daily,individual,both
+ind_illness ,individual,both
+I.HEALTH.ind_smoke_some_all_days.INDV,individual,both
+ind_work,individual,both
+ind_work_situation,individual,hc_only
+ind_work_hazardous,individual,ref_only
