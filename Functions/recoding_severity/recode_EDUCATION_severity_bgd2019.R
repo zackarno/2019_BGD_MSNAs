@@ -53,13 +53,13 @@ recode_EDUCATION_severity_bgd2019<-name <- function(hh_data,individual_data, pop
         
         
         int.education.indiv.sev3=if_else((ind_core_age==FALSE &int.education.indiv.no_education)|
-          (int.education.indiv.non_formal_education_only & ind_core_age),1,0,missing=0),
+          ((int.education.indiv.non_formal_education_only|ind_ed_TLC=="yes") & ind_core_age),1,0,missing=0),
         # int.education.indiv.outside_core_age_sev3= ind_core_age==FALSE &int.education.indiv.no_education,
         # int.education.indiv.core_age_sev3=int.education.indiv.non_formal_education_only & ind_core_age,
         
         # int.education.indiv.core_age_sev2=ind_core_age & int.ed_TLC.yes , 
         # int.education.indiv.outside_core_age_sev2=ind_core_age== FALSE & int.education.indiv.no_education==0
-        int.education.indiv.sev2= if_else((ind_core_age & int.ed_TLC.yes)|(ind_core_age== FALSE & int.education.indiv.no_education==0),1,0,missing=0),
+        int.education.indiv.sev2= if_else(ind_core_age== FALSE & int.education.indiv.no_education==0,1,0,missing=0),
         # int.education.not_applicable= is.na(ind_ed_TLC),
         int.education.indiv.sev1= is.na(ind_ed_TLC),
         int.education.indiv.sev_score= if_else(int.education.indiv.core_age_sev4==1,4,

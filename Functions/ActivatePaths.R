@@ -12,7 +12,7 @@ if(user=="zack"){
       Indiv_path<-paste0(data_cleaning_input_folder,Indiv_file)}
     
     if (data_process=="analysis"){
-      HH_path<- "Inputs/Host_Community/03_data_analysis/cleaned_datasets/20190909_HH_HostCommunity_Cleaned_20190915_with_dist.csv"
+      HH_path<- "Inputs/Host_Community/03_data_analysis/cleaned_datasets/20190909_HH_HostCommunity_Cleaned_20190915.csv"
       Indiv_path<-"Inputs/Host_Community/03_data_analysis/cleaned_datasets/20190909_Indiv_HostCommunity_Cleaned_20190915.csv"
       strata<- "union_name" 
       sf_pop<-'HH_pop'
@@ -61,8 +61,8 @@ if(user=="zack"){
                                str_replace_all(ymd(Sys.Date()-2),"-","_"),"_HH_NAresponses.csv")
     aux_duration_path<-paste0("D:/Dropbox/REACH_BGD\\REACH\\Ongoing\\70DQR - Joint MSNAs\\in-depth MSNAs\\02 Workplan and Data Collection\\01_HostCommunity/02_data_collection/aux_outputs/duration_data/", str_replace_all(ymd(Sys.Date()-2),"-","_"),"_Response_durations_cum.csv")
     buffer<-50    }
-    survey_path<-"Inputs/Host_Community/02_data_collection/04_tool/HostCommunity_MSNA2019_tool_survey.csv"
-    choices_path<- "Inputs/Host_Community/02_data_collection/04_tool/HostCommunity_MSNA2019_tool_choices.csv"
+    survey_path<-"Inputs/Host_Community/04_tool/HostCommunity_MSNA2019_tool_survey.csv"
+    choices_path<- "Inputs/Host_Community/04_tool/HostCommunity_MSNA2019_tool_choices.csv"
     pop_path<-"Inputs/Host_Community/03_data_analysis/Population_Figures_2011_Census_HostCommunity.csv"
 
     
@@ -124,7 +124,7 @@ if(user=="zack"){
     referral_path<-"D:/Dropbox/REACH_BGD\\REACH\\Ongoing\\70DQR - Joint MSNAs\\in-depth MSNAs\\02 Workplan and Data Collection\\02_Refugee\\02_data_collection\\aux_outputs/referrals/"
     }
     pop_path<-"Inputs/Refugee/04_data_analysis/01_population_figures/july2019_unhcr_pop_numbers.csv"
-    survey_path<-"Inputs/Refugee/02_data_collection/04_tool/Refugee_MSNA2019_tool_survey.csv"
-    choices_path<-"Inputs/Refugee/02_data_collection/04_tool/Refugee_MSNA2019_tool_choices.csv"}
+    survey_path<-"Inputs/Refugee/04_tool/Refugee_MSNA2019_tool_survey.csv"
+    choices_path<-"Inputs/Refugee/04_tool/Refugee_MSNA2019_tool_choices.csv"}
  
   long_lat<-c("X_gps_reading_longitude","X_gps_reading_latitude")}

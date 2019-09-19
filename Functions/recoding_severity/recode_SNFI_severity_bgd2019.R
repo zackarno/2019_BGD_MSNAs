@@ -1,12 +1,14 @@
 # host_hh<-HH_yes_consent
 # host_indiv<-indiv_yes_consent
 # 
-# ref_hh<-HH_yes_consent
-# ref_indiv<-indiv_yes_consent
+# hh_data<-HH_yes_consent
+# individual_data<-indiv_yes_consent
 # 
 # hh_data<-ref_hh
 # individual_data<-ref_indiv
 
+# hh_data<- host_hh
+# individual_data<-host_indiv
 # indiv_data<-host_indiv
 recode_SNFI_severity_bgd2019<-name <- function(hh_data,individual_data, population) {
   
@@ -175,8 +177,8 @@ recode_SNFI_severity_bgd2019<-name <- function(hh_data,individual_data, populati
         sev.snfi.power.s1= int.snfi.power.grid_connected==1 | (int.snfi.power.grid_connected==0 & int.snfi.power.grid_not_needed==1),
         
         sev.snfi.power.s3= (int.snfi.power.grid_cant_afford==1| int.snfi.power.grid_not_installed==1),
-        sev.snfi.power.s5= (int.snfi.power.grid_connected==0 |  int.snfi.power.no_electricity_at_night==1)& int.snfi.power.no_portable_light==1 ,
-        sev_score.snfi.sub.power=if_else(sev.snfi.power.s5==1,5,
+        sev.snfi.power.s4= (int.snfi.power.grid_connected==0 |  int.snfi.power.no_electricity_at_night==1)& int.snfi.power.no_portable_light==1 ,
+        sev_score.snfi.sub.power=if_else(sev.snfi.power.s4==1,4,
                                      if_else(sev.snfi.power.s3==1,3,
                                              if_else(sev.snfi.power.s1==1,1, 99)))
 
@@ -185,18 +187,18 @@ recode_SNFI_severity_bgd2019<-name <- function(hh_data,individual_data, populati
     snfi_severity_score_col_names_obj<-HH_rec_step2[,c("sev_score.snfi.sub.structure", "sev_score.snfi.sub.tenure", "sev_score.snfi.sub.power")]
     snfi_severity_score_col_names<-c("sev_score.snfi.sub.structure", "sev_score.snfi.sub.tenure", "sev_score.snfi.sub.power")
 ##########NEED TO FIX
-    HH_rec_step3<-HH_rec_step2 %>%
+    HH_rec_step3<-HH_rec_step2 %>% as.data.frame() %>% 
       mutate(
         sev_score.snfi.number4=rowSums(sapply(HH_rec_step2[,snfi_severity_score_col_names], function(x) ifelse(x==4, TRUE,FALSE))),
         sev_score.snfi.number4_over3= if_else(sev_score.snfi.number4>2,TRUE,FALSE),
       ) %>% 
-      rowwise() %>% 
-      mutate(sev_score.snfi.max= max(snfi_severity_score_col_names_obj)) 
+      # rowwise() %>% 
+      mutate(sev_score.snfi.max= apply (HH_rec_step2[,snfi_severity_score_col_names],1,max)) 
       
     HH_rec_step3<-HH_rec_step3 %>% 
         mutate(sev_score.snfi.total=if_else(sev_score.snfi.number4_over3==TRUE,5,sev_score.snfi.max))
       
-      HH_rec_step3 %>% group_by(sev_score.snfi.max) %>% count()
+
       # mutate(
       #   sev_score.snfi.total=rowMa
       #   

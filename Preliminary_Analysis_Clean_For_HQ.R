@@ -30,7 +30,7 @@ Indiv<-read.csv(Indiv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 HH_kobo_questions<-read.csv(survey_path,stringsAsFactors = FALSE)
 HH_kobo_choices<-read.csv(choices_path, stringsAsFactors = FALSE)
 HH_kobo_questionnaire<-koboquest::load_questionnaire(HH,questions = HH_kobo_questions,choices = HH_kobo_choices, choices.label.column.to.use = "label..english")
-
+Indiv_kobo_questionnaire<-koboquest::load_questionnaire(Indiv,questions = HH_kobo_questions,choices = HH_kobo_choices, choices.label.column.to.use = "label..english")
 #LOAD DAP
 dap<- read.csv("Inputs/DAPs/MSNA_DAP_BasicAnalysis_All_Changes_Together_19SepMM.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
@@ -90,6 +90,8 @@ Indiv_with_composite<-Indiv %>% left_join(composite_indicators$individual_compos
 
 # GET RID OF CONCATENAT
 HH_with_composite<-butteR::remove_concat_select_multiple(HH_with_composite,questionnaire = HH_kobo_questionnaire)
+Indiv_with_composite<- butteR::remove_concat_select_multiple(Indiv_with_composite,questionnaire = Indiv_kobo_questionnaire)
+
 HH_data_factorized<-butteR::questionnaire_factorize_categorical(HH_with_composite,questionnaire = HH_kobo_questionnaire,return_full_data = TRUE)
 
 HH_data_factorized<-HH_data_factorized %>%  #REMOVE COLUMNS THAT ARE ALL NAS
@@ -138,16 +140,17 @@ ind_svy_ob<-survey::svydesign(ids = ~ 1,
 
 # run dap -----------------------------------------------------------------
 variables_to_analyze<-dap_break_downs$dap_basic_hh$variable  %>% trimws()
+dap_break_downs$dap_basic_hh$variable
 HH_svy_ob$variables$I.HH_CHAR.childheaded_households.HH<-forcats::fct_expand(HH_svy_ob$variables$I.HH_CHAR.childheaded_households.HH, "yes")
 
-#NINA WANTS THE DATA WITHOUT()
 
-basic_analysis_without_cis<-list()
-# debugonce(butteR::mean_proportion_table)
+#NINA WANTS THE DATA WITHOUT CI
+
 basic_analysis_without_cis[["overall"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                  list_of_variables = variables_to_analyze,
                                                                  aggregation_level = NULL,
                                                                  round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+
 basic_analysis_without_cis[["by_strata"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                  list_of_variables = variables_to_analyze,
                                                                  aggregation_level = strata,

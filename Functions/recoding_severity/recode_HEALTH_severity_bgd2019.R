@@ -118,7 +118,7 @@ number.health.names<-length(int.health.names.to_combine)
 
  names_for_sev3<-names(HH_rec_step1)[names(HH_rec_step1)%in%names_for_sev3 %>%which()]
 
-  HH_rec_step2<-HH_rec_step1 %>% 
+  HH_rec_step2<-HH_rec_step1 %>% ungroup() %>% 
     mutate(
       number_health_access= rowSums(.[int.health.names.to_combine], na.rm = TRUE),
       
