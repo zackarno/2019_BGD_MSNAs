@@ -21,7 +21,6 @@ library(forcats)
 source("Functions/ActivatePaths.R")
 source("Functions/make_composite_indicators_bgd_msna_2019.R")
 
-dropbox_dap<-"D:\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70DQR - Joint MSNAs\\in-depth MSNAs\\03 Analysis Plan\\Data Analysis Plan\\Butter\\MSNA_DAP_BasicAnalysis_All_Changes_Together_19SepMM.csv"
 
 # LOAD IN DATA AND ODK TOOLS ----------------------------------------------
 
