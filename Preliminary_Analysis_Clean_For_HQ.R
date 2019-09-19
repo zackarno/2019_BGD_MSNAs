@@ -1,6 +1,7 @@
 
 
 rm(list=ls())
+user<-c("zack", "mehedi")[1]
 population<-c("Host","Refugee")[2]
 data_process<-c("checking", "cleaning", "analysis")[3]
 # write_output<-c("yes","no")[1]
@@ -20,7 +21,7 @@ library(forcats)
 source("Functions/ActivatePaths.R")
 source("Functions/make_composite_indicators_bgd_msna_2019.R")
 
-
+dropbox_dap<-"D:\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70DQR - Joint MSNAs\\in-depth MSNAs\\03 Analysis Plan\\Data Analysis Plan\\Butter\\MSNA_DAP_BasicAnalysis_All_Changes_Together_19SepMM.csv"
 
 # LOAD IN DATA AND ODK TOOLS ----------------------------------------------
 
@@ -35,22 +36,49 @@ HH_kobo_questionnaire<-koboquest::load_questionnaire(HH,questions = HH_kobo_ques
 dap1<- read.csv("Inputs/DAPs/MSNA_DAP_BasicAnalysis_simple_18Sept.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 dap2<-read.csv("Inputs/DAPs/MSNA_DAP_BasicAnalysis_SUBSET_ind_gender_18Sept.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
+dap<-read.csv(dropbox_dap, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+View(dap)
 #LOAD POPULATION DATA
 pop<- read.csv(pop_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
-
+dap$dataset
 #CLEAN AND SPLIT DAP INTO REFUGEE VS HOST COMMUNITY AND INDIVIDUAL VS HH LEVELS
+dap %>% filter(dataset %in% c("ref_only","both"))
+
+dap_break_downs
+
 if(population=="Refugee"){
-  dap1_hh<-dap1 %>% 
-    filter(dataset %in% c("ref_only", "both")) %>% 
+  dap_break_downs<-list()
+  dap_break_downs$dap_basic_hh<-dap %>%
+    filter(is.na(disaggregation)) %>% 
+    filter(dataset %in% c("ref_only","both")) %>% 
     filter(level=="household")
-  dap1_indiv<-dap1 %>% 
+  
+  dap_break_downs$dap_basic_indiv<-dap %>%
+    filter(is.na(disaggregation)) %>% 
     filter(dataset %in% c("ref_only", "both")) %>% 
     filter(level=="individual")
   
-  dap2_indiv <-dap2 %>% 
-    filter(dataset %in% c("ref_only", "both")) 
+  dap_break_downs$dap_subsets_hh <-dap %>%
+    filter(!is.na(subset)) %>% 
+    filter(dataset %in% c("ref_only", "both")) %>%
+    filter(level=="household") %>% 
+      group_by(subset)
+  dap_break_downs$dap_subsets_indiv <-dap %>%
+    filter(!is.na(subset)) %>% 
+    filter(dataset %in% c("ref_only", "both")) %>%
+    filter(level=="individual") %>% 
+    group_by(subset)
+  dap_break_downs$dap_composite_hh<-dap %>% 
+    filter(!is.na(subset)) %>% 
+    filter(dataset %in% c("ref_only", "both")) %>%
+    filter(level=="household")
+  dap_break_downs$dap_composite_indiv<-dap %>% 
+    filter(!is.na(subset)) %>% 
+    filter(dataset %in% c("ref_only", "both")) %>%
+    filter(level=="individual")
   }
+
 
 if(population=="Host"){
   dap1_hh<-dap1 %>% 
@@ -127,12 +155,13 @@ ind_svy_ob<-survey::svydesign(ids = ~ 1,
 
 
 # run dap -----------------------------------------------------------------
-variables_to_analyze<-dap1_hh$variable %>% trimws()
+variables_to_analyze<-dap_break_downs$dap_basic_hh$variable  %>% trimws()
 HH_svy_ob$variables$I.HH_CHAR.childheaded_households.HH<-forcats::fct_expand(HH_svy_ob$variables$I.HH_CHAR.childheaded_households.HH, "yes")
 
 #NINA WANTS THE DATA WITHOUT()
 
 basic_analysis_without_cis<-list()
+# debugonce(butteR::mean_proportion_table)
 basic_analysis_without_cis[["overall"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                  list_of_variables = variables_to_analyze,
                                                                  aggregation_level = NULL,
@@ -141,6 +170,7 @@ basic_analysis_without_cis[["by_strata"]]<-butteR::mean_proportion_table(design 
                                                                  list_of_variables = variables_to_analyze,
                                                                  aggregation_level = strata,
                                                                  round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+
 basic_analysis_without_cis[["by_respondent_gender"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                         list_of_variables = variables_to_analyze,
                                                                         aggregation_level = "respondent_gender",
@@ -176,16 +206,18 @@ for(i in 1:length(basic_analysis_without_cis)){
 # Indivdual Level Analysis ------------------------------------------------
 
 # DAP 1
-variables_to_analyze<-dap1_indiv$variable %>% trimws()
+
+variables_to_analyze<-dap_break_downs$dap_basic_indiv$variable %>% trimws()
 
 #JUST ADDING ONE VARIABLE CLASS INTEGER SO THAT BUTTER WILL RUN (NEED TO UPDATE THIS IN THE butteR package)
-variables_to_analyze_good<- c(variables_to_analyze,"ind_why_notreatment.treatment_expensive")
+variables_to_analyze_good<- c(variables_to_analyze)#,"ind_why_notreatment.treatment_expensive")
 
 #FACTORIZE THE INDIVIDUAL DATA -- WILL NOT ACTUALLY USE THE QUESTIONNAIRE- SO WARNING DOESNT MATTER
 ind_svy_ob$variables<- butteR::questionnaire_factorize_categorical(data = ind_svy_ob$variables, questionnaire = HH_kobo_questionnaire,return_full_data = TRUE)
 
 
 basic_analysis_without_cis<-list()
+
 basic_analysis_without_cis[["overall"]]<-butteR::mean_proportion_table(design = ind_svy_ob, 
                                                                        list_of_variables = variables_to_analyze_good,
                                                                        aggregation_level = NULL,
@@ -198,8 +230,8 @@ basic_analysis_without_cis[["by_respondent_gender"]]<-butteR::mean_proportion_ta
                                                                                     list_of_variables = variables_to_analyze_good,
                                                                                     aggregation_level = "respondent_gender",
                                                                                     round_to = 2,return_confidence = FALSE,na_replace = FALSE)
-
-
+basic_analysis_without_cis$overall
+basic
 for(i in 1:length(basic_analysis_without_cis)){
   type_of_analysis<-names(basic_analysis_without_cis)[i]
   date_for_title<-stringr::str_replace_all(Sys.Date(),"-","_")
