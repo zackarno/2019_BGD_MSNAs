@@ -54,8 +54,8 @@ HH_kobo_questions<-read.csv(survey_path,stringsAsFactors = FALSE)
 HH_kobo_choices<-read.csv(choices_path, stringsAsFactors = FALSE)
 
 
-# host<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
-# host_indiv<-read.csv(Indiv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+# host<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA)
+# host_indiv<-read.csv(Indiv_path, strcingsAsFactors = FALSE, na.strings=c("", " ", NA))
 # ref<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 # ref_indiv<-read.csv(Indiv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
@@ -77,9 +77,11 @@ HH_with_composite<-HH_yes_consent %>% left_join(composite_indicators$household_c
 
 HH_with_composite<-butteR::remove_concat_select_multiple(HH_with_composite,questionnaire = HH_kobo_questionnaire)
 
-# debugonce(recode_SNFI_severity_bgd2019)
+# debugonce(recode_HEALTH_severity_bgd2019)
 
+HH_severity<-HH_with_composite
 HH_severity<-recode_SNFI_severity_bgd2019(hh_data= HH_with_composite, individual_data=indiv_yes_consent, population=population)
+
 HH_severity<-recode_HEALTH_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
 HH_severity<-recode_EDUCATION_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
 
@@ -144,7 +146,7 @@ severity_totals_over_3<-HH_srv %>% select(intersect(starts_with("sev_score"), en
 
 severity_sub_component_nfi<- HH_srv %>% select(starts_with("sev_score.snfi.sub")) %>% colnames()
 severity_int_component_health<-HH_srv %>% select(starts_with("int.health")) %>% colnames()
-
+severity_int_component_education<-HH_srv %>% select(starts_with("int.education")) %>% colnames()
 severity_sector_finals= HH_srv %>% select(intersect(starts_with("sev_score"),ends_with(".total"))) %>% colnames
 HH_srv$variables[,severity_components]<-lapply(HH_srv$variables[,severity_components], as.factor)
 HH_srv$variables[,severity_components]<-lapply(HH_srv$variables[,severity_components], function(x)forcats::fct_expand(x,"1","2", "3", "4","5") %>% fct_relevel("1","2", "3", "4","5"))
@@ -160,10 +162,24 @@ HH_srv$variables[,severity_sector_finals]<-lapply(HH_srv$variables[,severity_sec
 ```{r,fig.height=10}
 severity_sub_component_graphs<-list()
 for(i in 1:length(severity_sub_component_nfi)){
-  severity_sub_component_graphs[[severity_sub_component_nfi[[i]]]]<-HH_srv %>% 
-    group_by(!!sym(strata),!!sym(severity_sub_component_nfi[[i]]), .drop=FALSE) %>% 
-    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>% 
+  severity_sub_component_graphs[[severity_sub_component_nfi[[i]]]]<-HH_srv %>%
+    group_by(!!sym(strata),!!sym(severity_sub_component_nfi[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
     ggplot(aes(x=as.factor(!!sym(strata)), y=mean.stat, fill=!!sym(severity_sub_component_nfi[[i]])))+
+    geom_bar(position=position_dodge(), stat="identity", colour='black') +
+    scale_fill_manual(values=severity_colors)+
+    # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+    geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+    scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+    labs(x=strata)+
+    coord_flip()
+}
+
+for(i in 1:length(severity_components)){
+  severity_sub_component_graphs[[severity_components[[i]]]]<-HH_srv %>%
+    group_by(!!sym(strata),!!sym(severity_components[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+    ggplot(aes(x=as.factor(!!sym(strata)), y=mean.stat, fill=!!sym(severity_components[[i]])))+
     geom_bar(position=position_dodge(), stat="identity", colour='black') +
     scale_fill_manual(values=severity_colors)+
     # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
@@ -178,7 +194,7 @@ severity_sub_component_graphs
 stratified_intermediate_health_graphs<-butteR::barplot_grouped_binaries(design = HH_srv,list_of_variables = severity_int_component_health,aggregation_level = strata )
 
 overall_intermediate_health_graphs<-butteR::barplot_grouped_binaries(design = HH_srv,list_of_variables = severity_int_component_health,aggregation_level = NULL)
-
+overall_intermediate_education_graphs<-butteR::barplot_grouped_binaries(design = HH_srv,list_of_variables = severity_int_component_education,aggregation_level = NULL)
 
 
 
@@ -218,6 +234,8 @@ overall_intermediate_health_graphs
 ```{r,fig.height=20, out.width= "100%"}
 
 stratified_intermediate_health_graphs
+
+overall_intermediate_education_graphs
 ````
 
 
@@ -244,26 +262,26 @@ HH_CHAR_vulnerabilities<-c("I.HH_CHAR.size.HH", "I.HH_CHAR.gender_hoh.HH",
 "I.HH_CHAR.dependency_ratio_classification.HH")
 # HH_srv$variables %>% select(starts_with("I.HH_CHAR")) %>% colnames() %>% dput()
 
-HH_srv$variables$i.hh_char
-severity_against_vulnerability_graphs<-list()
-rezzys<-list()
-for(i in 1:length(HH_CHAR_vulnerabilities)){
-  vulnerability_characteristic<-HH_CHAR_vulnerabilities[[i]]
-  print(vulnerability_characteristic)
-  results_summarised<-HH_srv %>% 
-    group_by(!!sym(vulnerability_characteristic),sev_score.snfi.total, .drop=FALSE) %>% 
-    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) 
-  rezzys[[i]]<-results_summarised
-  severity_against_vulnerability_graphs[[vulnerability_characteristic]]<-results_summarised %>% 
-    ggplot(aes(x=as.factor(!!sym(vulnerability_characteristic)), y=mean.stat, fill=sev_score.snfi.total))+
-    geom_bar(position=position_dodge(), stat="identity", colour='black') +
-    colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
-    
-    geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
-    scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
-    coord_flip()
-}
-severity_against_vulnerability_graphs
+# HH_srv$variables$i.hh_char
+# severity_against_vulnerability_graphs<-list()
+# rezzys<-list()
+# for(i in 1:length(HH_CHAR_vulnerabilities)){
+#   vulnerability_characteristic<-HH_CHAR_vulnerabilities[[i]]
+#   print(vulnerability_characteristic)
+#   results_summarised<-HH_srv %>% 
+#     group_by(!!sym(vulnerability_characteristic),sev_score.snfi.total, .drop=FALSE) %>% 
+#     summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) 
+#   rezzys[[i]]<-results_summarised
+#   severity_against_vulnerability_graphs[[vulnerability_characteristic]]<-results_summarised %>% 
+#     ggplot(aes(x=as.factor(!!sym(vulnerability_characteristic)), y=mean.stat, fill=sev_score.snfi.total))+
+#     geom_bar(position=position_dodge(), stat="identity", colour='black') +
+#     colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+#     
+#     geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+#     scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+#     coord_flip()
+# }
+# severity_against_vulnerability_graphs
 
 ```
 

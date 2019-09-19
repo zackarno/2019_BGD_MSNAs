@@ -89,9 +89,10 @@ HH_with_composite<-HH_yes_consent %>% left_join(composite_indicators$household_c
 Indiv_with_composite<-Indiv %>% left_join(composite_indicators$individual_composites,by=c("X_submission__uuid"))
 
 # GET RID OF CONCATENAT
-HH_with_composite<-butteR::remove_concat_select_multiple(HH_with_composite,questionnaire = HH_kobo_questionnaire)
-HH_data_factorized<-butteR::questionnaire_factorize_categorical(HH_with_composite,questionnaire = HH_kobo_questionnaire,return_full_data = TRUE)
-
+# HH_with_composite<-butteR::remove_concat_select_multiple(HH_with_composite,questionnaire = HH_kobo_questionnaire)
+# HH_data_factorized<-butteR::questionnaire_factorize_categorical(HH_with_composite,questionnaire = HH_kobo_questionnaire,return_full_data = TRUE)
+HH_data_factorized<-HH_with_composite
+HH_data_factorized$improvement
 HH_data_factorized<-HH_data_factorized %>%  #REMOVE COLUMNS THAT ARE ALL NAS
   select_if(~!all(is.na(.)))
 
@@ -140,14 +141,15 @@ ind_svy_ob<-survey::svydesign(ids = ~ 1,
 variables_to_analyze<-dap_break_downs$dap_basic_hh$variable  %>% trimws()
 HH_svy_ob$variables$I.HH_CHAR.childheaded_households.HH<-forcats::fct_expand(HH_svy_ob$variables$I.HH_CHAR.childheaded_households.HH, "yes")
 
-#NINA WANTS THE DATA WITHOUT()
+#NINA WANTS THE DATA WITHOUT CIs
 
 basic_analysis_without_cis<-list()
 # debugonce(butteR::mean_proportion_table)
+
 basic_analysis_without_cis[["overall"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                        list_of_variables = variables_to_analyze,
                                                                        aggregation_level = NULL,
-                                                                       round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+                                                                       round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = HH_kobo_questionnaire)
 basic_analysis_without_cis[["by_strata"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                          list_of_variables = variables_to_analyze,
                                                                          aggregation_level = strata,
@@ -199,6 +201,10 @@ ind_svy_ob$variables<- butteR::questionnaire_factorize_categorical(data = ind_sv
 
 
 basic_analysis_without_cis<-list()
+
+
+
+
 
 basic_analysis_without_cis[["overall"]]<-butteR::mean_proportion_table(design = ind_svy_ob, 
                                                                        list_of_variables = variables_to_analyze_good,
@@ -265,68 +271,68 @@ for(analysis_name in names(analysis_by_ind_gender)){
 }
 
 
-# INDIVIDUAL SUBSET BY EDUCATION AGE GROUPS -------------------------------
-
-
-
-subset_groups<-split(dap_break_downs$dap_subsets_indiv,dap_break_downs$dap_subsets_indiv$subset)
-
-for (i in 1: length(subset_groups)){
-  print(paste0 ("i =" ,i))
-  working_group_to_subset<-subset_groups[[i]]
-  name_working_group_to_subset<-names(subset_groups)[i]
-  variables_to_analyze<-working_group_to_subset$variable %>% trimws()
-  list_of_subsets<-split(ind_svy_ob$variables, ind_svy_ob$variables[[name_working_group_to_subset]])
-  # list_of_subsets[lapply(list_of_subsets, length) > 0]
-  for(j in 1 : length(list_of_subsets)){
-    name_subset_looping<-names(list_of_subsets)[j]
-    
-    print(paste0 ("j =" ,name_subset_looping))
-    new_design<-survey::svydesign(ids = ~ 1,
-                                  strata = formula(paste0("~",strata)),
-                                  weights= ~weights,
-                                  data = list_of_subsets[[name_subset_looping]])
-    analyzed_overall[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
-                                                                      list_of_variables = variables_to_analyze,
-                                                                      aggregation_level = NULL,
-                                                                      round_to = 2,return_confidence = FALSE,na_replace = FALSE)
-    analyzed_by_camp[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
-                                                                      list_of_variables = variables_to_analyze,
-                                                                      aggregation_level = strata,
-                                                                      round_to = 2,return_confidence = FALSE,na_replace = FALSE)
-    analyzed_by_respondent_gender[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
-                                                                                   list_of_variables = variables_to_analyze,
-                                                                                   aggregation_level = "respondent_gender",
-                                                                                   round_to = 2,return_confidence = FALSE,na_replace = FALSE)
-  } 
-  
-  
-}
-
-
-# Table of weights  -------------------------------------------------
-
-
-HH_svy_ob$variables$weights<-HH_svy_ob %>% weights()
-HH_svy_ob$variables %>% nrow()
-weight_table<-HH_svy_ob$variables %>%
-  group_by(!!sym(strata)) %>%
-  summarise(weights=unique(weights),
-            number_per_union=n()) %>% data.frame() 
-# write.csv(weight_table, "Outputs/HC_MSNA2019_Weights_17sept2019.csv")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# # INDIVIDUAL SUBSET BY EDUCATION AGE GROUPS -------------------------------
+# 
+# 
+# 
+# subset_groups<-split(dap_break_downs$dap_subsets_indiv,dap_break_downs$dap_subsets_indiv$subset)
+# 
+# for (i in 1: length(subset_groups)){
+#   print(paste0 ("i =" ,i))
+#   working_group_to_subset<-subset_groups[[i]]
+#   name_working_group_to_subset<-names(subset_groups)[i]
+#   variables_to_analyze<-working_group_to_subset$variable %>% trimws()
+#   list_of_subsets<-split(ind_svy_ob$variables, ind_svy_ob$variables[[name_working_group_to_subset]])
+#   # list_of_subsets[lapply(list_of_subsets, length) > 0]
+#   for(j in 1 : length(list_of_subsets)){
+#     name_subset_looping<-names(list_of_subsets)[j]
+#     
+#     print(paste0 ("j =" ,name_subset_looping))
+#     new_design<-survey::svydesign(ids = ~ 1,
+#                                   strata = formula(paste0("~",strata)),
+#                                   weights= ~weights,
+#                                   data = list_of_subsets[[name_subset_looping]])
+#     analyzed_overall[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
+#                                                                       list_of_variables = variables_to_analyze,
+#                                                                       aggregation_level = NULL,
+#                                                                       round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+#     analyzed_by_camp[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
+#                                                                       list_of_variables = variables_to_analyze,
+#                                                                       aggregation_level = strata,
+#                                                                       round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+#     analyzed_by_respondent_gender[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
+#                                                                                    list_of_variables = variables_to_analyze,
+#                                                                                    aggregation_level = "respondent_gender",
+#                                                                                    round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+#   } 
+#   
+#   
+# }
+# 
+# 
+# # Table of weights  -------------------------------------------------
+# 
+# 
+# HH_svy_ob$variables$weights<-HH_svy_ob %>% weights()
+# HH_svy_ob$variables %>% nrow()
+# weight_table<-HH_svy_ob$variables %>%
+#   group_by(!!sym(strata)) %>%
+#   summarise(weights=unique(weights),
+#             number_per_union=n()) %>% data.frame() 
+# # write.csv(weight_table, "Outputs/HC_MSNA2019_Weights_17sept2019.csv")
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
