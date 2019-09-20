@@ -5,7 +5,7 @@ user<-c("zack", "mehedi")[1]
 population<-c("Host","Refugee")[1]
 data_process<-c("checking", "cleaning", "analysis")[3]
 # write_output<-c("yes","no")[1]
-
+# butteR::mean_proportion_table
 library(dplyr)
 library(hypegrammaR)
 library(koboquest)
@@ -145,7 +145,7 @@ HH_svy_ob$variables$I.HH_CHAR.childheaded_households.HH<-forcats::fct_expand(HH_
 
 
 #NINA WANTS THE DATA WITHOUT CI
-
+basic_analysis_without_cis<-list()
 basic_analysis_without_cis[["overall"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                  list_of_variables = variables_to_analyze,
                                                                  aggregation_level = NULL,
@@ -155,6 +155,7 @@ basic_analysis_without_cis[["by_strata"]]<-butteR::mean_proportion_table(design 
                                                                  list_of_variables = variables_to_analyze,
                                                                  aggregation_level = strata,
                                                                  round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+
 
 basic_analysis_without_cis[["by_respondent_gender"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                         list_of_variables = variables_to_analyze,

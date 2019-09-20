@@ -31,6 +31,8 @@ HH_kobo_questions<-read.csv(survey_path,stringsAsFactors = FALSE)
 HH_kobo_choices<-read.csv(choices_path, stringsAsFactors = FALSE)
 HH_kobo_questionnaire<-koboquest::load_questionnaire(HH,questions = HH_kobo_questions,choices = HH_kobo_choices, choices.label.column.to.use = "label..english")
 
+Indiv_kobo_questionnaire<-koboquest::load_questionnaire(Indiv,questions = HH_kobo_questions,choices = HH_kobo_choices, choices.label.column.to.use = "label..english")
+
 #LOAD DAP
 dap<- read.csv("Inputs/DAPs/MSNA_DAP_BasicAnalysis_All_Changes_Together_19SepMM.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
@@ -145,21 +147,24 @@ HH_svy_ob$variables$I.HH_CHAR.childheaded_households.HH<-forcats::fct_expand(HH_
 
 basic_analysis_without_cis<-list()
 # debugonce(butteR::mean_proportion_table)
-
+basic_analysis_without_cis
 basic_analysis_without_cis[["overall"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                        list_of_variables = variables_to_analyze,
                                                                        aggregation_level = NULL,
-                                                                       round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = HH_kobo_questionnaire)
+                                                                       round_to = 2,return_confidence = FALSE,na_replace = FALSE,
+                                                                       questionnaire = HH_kobo_questionnaire)
+
 basic_analysis_without_cis[["by_strata"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                          list_of_variables = variables_to_analyze,
                                                                          aggregation_level = strata,
-                                                                         round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+                                                                         round_to = 2,return_confidence = FALSE,na_replace = FALSE,
+                                                                         questionnaire = HH_kobo_questionnaire)
 
 basic_analysis_without_cis[["by_respondent_gender"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                                     list_of_variables = variables_to_analyze,
                                                                                     aggregation_level = "respondent_gender",
-                                                                                    round_to = 2,return_confidence = FALSE,na_replace = FALSE)
-
+                                                                                    round_to = 2,return_confidence = FALSE,na_replace = FALSE,
+                                                                                    questionnaire = HH_kobo_questionnaire)
 
 for(i in 1:length(basic_analysis_without_cis)){
   type_of_analysis<-names(basic_analysis_without_cis)[i]
@@ -197,7 +202,7 @@ variables_to_analyze<-dap_break_downs$dap_basic_indiv$variable %>% trimws()
 variables_to_analyze_good<- c(variables_to_analyze)#,"ind_why_notreatment.treatment_expensive")
 
 #FACTORIZE THE INDIVIDUAL DATA -- WILL NOT ACTUALLY USE THE QUESTIONNAIRE- SO WARNING DOESNT MATTER
-ind_svy_ob$variables<- butteR::questionnaire_factorize_categorical(data = ind_svy_ob$variables, questionnaire = HH_kobo_questionnaire,return_full_data = TRUE)
+# ind_svy_ob$variables<- butteR::questionnaire_factorize_categorical(data = ind_svy_ob$variables, questionnaire = HH_kobo_questionnaire,return_full_data = TRUE)
 
 
 basic_analysis_without_cis<-list()
@@ -209,15 +214,18 @@ basic_analysis_without_cis<-list()
 basic_analysis_without_cis[["overall"]]<-butteR::mean_proportion_table(design = ind_svy_ob, 
                                                                        list_of_variables = variables_to_analyze_good,
                                                                        aggregation_level = NULL,
-                                                                       round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+                                                                       round_to = 2,return_confidence = FALSE,na_replace = FALSE,
+                                                                       questionnaire = Indiv_kobo_questionnaire)
 basic_analysis_without_cis[["by_strata"]]<-butteR::mean_proportion_table(design = ind_svy_ob, 
                                                                          list_of_variables = variables_to_analyze_good,
                                                                          aggregation_level = strata,
-                                                                         round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+                                                                         round_to = 2,return_confidence = FALSE,na_replace = FALSE,
+                                                                         questionnaire = Indiv_kobo_questionnaire)
 basic_analysis_without_cis[["by_respondent_gender"]]<-butteR::mean_proportion_table(design = ind_svy_ob, 
                                                                                     list_of_variables = variables_to_analyze_good,
                                                                                     aggregation_level = "respondent_gender",
-                                                                                    round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+                                                                                    round_to = 2,return_confidence = FALSE,na_replace = FALSE,
+                                                                                    questionnaire = Indiv_kobo_questionnaire)
 basic_analysis_without_cis$overall
 
 for(i in 1:length(basic_analysis_without_cis)){
@@ -240,6 +248,7 @@ gender_subsets<-split(ind_svy_ob$variables, ind_svy_ob$variables$ind_gender)
 analyzed_overall<-list()
 analyzed_by_respondent_gender<-list()
 analyzed_by_camp<-list()
+ind_svy_ob$variables<-butteR::questionnaire_factorize_categorical(ind_svy_ob$variables,questionnaire = Indiv_kobo_questionnaire,return_full_data = TRUE)
 for(subset_group in names(gender_subsets)){
   new_design<-survey::svydesign(ids = ~ 1,
                                 strata = formula(paste0("~",strata)),
@@ -248,18 +257,25 @@ for(subset_group in names(gender_subsets)){
   analyzed_overall[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
                                                                     list_of_variables = variables_to_analyze,
                                                                     aggregation_level = NULL,
-                                                                    round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+                                                                    round_to = 2,return_confidence = FALSE,na_replace = FALSE,
+                                                                    questionnaire = Indiv_kobo_questionnaire)
   analyzed_by_camp[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
                                                                     list_of_variables = variables_to_analyze,
                                                                     aggregation_level = strata,
-                                                                    round_to = 2,return_confidence = FALSE,na_replace = FALSE)
+                                                                    round_to = 2,return_confidence = FALSE,na_replace = FALSE,
+                                                                    questionnaire = Indiv_kobo_questionnaire)
   analyzed_by_respondent_gender[[subset_group]]<-  butteR::mean_proportion_table(design = new_design, 
                                                                                  list_of_variables = variables_to_analyze,
                                                                                  aggregation_level = "respondent_gender",
-                                                                                 round_to = 2,return_confidence = FALSE,na_replace = FALSE)}
+                                                                                 round_to = 2,return_confidence = FALSE,na_replace = FALSE,
+                                                                                 questionnaire = Indiv_kobo_questionnaire)}
 
 analysis_by_ind_gender<-list(overall=analyzed_overall,by_strata=analyzed_by_camp,by_resp_gender=analyzed_by_respondent_gender)
+# ind_svy_ob$variables$ind_formal_learning_prev %>% class()
+# Indiv_kobo_questionnaire$question_get_question_label("ind_formal_learning_prev")
+# Indiv_kobo_questionnaire$question_get_choices("ind_formal_learning_prev")
 
+asdf$ind_formal_learning_prev %>% class()
 for(analysis_name in names(analysis_by_ind_gender)){
   male_ind_gender<-analysis_by_ind_gender[[analysis_name]][["male"]]
   female_ind_gender<-analysis_by_ind_gender[[analysis_name]][["female"]]
