@@ -1,5 +1,5 @@
 
-ms <- function(ms) {
-  hh_data %>% select(starts_with(ms)) %>% colnames() %>% dput()
+ms <- function(data,ms) {
+  data %>% select(starts_with(ms)) %>% colnames() %>% dput()
   
 }

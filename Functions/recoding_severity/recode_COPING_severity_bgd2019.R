@@ -11,7 +11,7 @@
 # host$hh_coping_mechanism.sell_nfi 
 # # 
 
-recode_COPING_severity_bgd2019<-name <- function(hh_data,individual_data, population) {
+recode_COPING_severity_bgd2019<- function(hh_data,individual_data, population) {
   
   if(population=="Host"){
     food_source_borrowed=sym("food_source.borrow")

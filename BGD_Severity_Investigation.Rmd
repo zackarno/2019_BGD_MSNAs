@@ -20,11 +20,12 @@ knitr::opts_chunk$set(echo = TRUE,
 
 rm(list=ls())
 user<-"zack"
-population<-c("Host","Refugee")[2]
+population<-c("Host","Refugee")[1]
 data_process<-c("checking", "cleaning", "analysis")[3]
+analysis_phase<-c("basic","relationship_testing")[1]
 
 library(dplyr)
-library(GISutils)
+# library(GISutils)
 # detach("package:butteR", unload = TRUE)
 library(nngeo)
 library(dplyr)
@@ -48,10 +49,18 @@ source("Functions/recoding_severity/recode_SNFI_severity_bgd2019.R")
 source("Functions/recoding_severity/recode_HEALTH_severity_bgd2019.R")
 source("Functions/recoding_severity/recode_COPING_severity_bgd2019.R")
 source("Functions/recoding_severity/recode_EDUCATION_severity_bgd2019.R")
+source("Functions/recoding_severity/recode_WASH_severity_bgd2019.R")
+# source( "Functions/recoding_severity/recode_PROTECTION_severity_bgd2019.R")
 #LOAD DATA
 #############
 HH_kobo_questions<-read.csv(survey_path,stringsAsFactors = FALSE)
 HH_kobo_choices<-read.csv(choices_path, stringsAsFactors = FALSE)
+wash_combo_table<-read.csv(wash_severity_combination_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
+wash_errors<- read.csv(wash_error_path,na.strings = c("", " "))
+
+
+
+incidents_per_camp<-read.csv("Inputs/DAPs/Severity Analysis_Protection_Reported Incidents per camp_REACH.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
 
 
 # host<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA)
@@ -71,6 +80,12 @@ HH_yes_consent<- HH %>% filter(informed_consent=="yes")
 indiv_yes_consent<-Indiv %>% filter(X_submission__uuid %in% HH_yes_consent$X_uuid)
 # debugonce(make_composite_indicators_bgd_msna_2019)
 
+
+enough_water_cols_to_fix<-HH_yes_consent %>% select(starts_with("enough_water")) %>% colnames()
+rows_to_fix<-which(HH_yes_consent$X_uuid %in% wash_errors$uuid)
+HH_yes_consent[rows_to_fix,enough_water_cols_to_fix] <-sapply(HH_yes_consent[rows_to_fix,enough_water_cols_to_fix],function(x)x<-NA) 
+
+
 composite_indicators<-make_composite_indicators_bgd_msna_2019(hh_data = HH_yes_consent,  individual_data = indiv_yes_consent,population = population)
 
 HH_with_composite<-HH_yes_consent %>% left_join(composite_indicators$household_composites,by="X_uuid")
@@ -80,10 +95,14 @@ HH_with_composite<-butteR::remove_concat_select_multiple(HH_with_composite,quest
 # debugonce(recode_HEALTH_severity_bgd2019)
 
 HH_severity<-HH_with_composite
-HH_severity<-recode_SNFI_severity_bgd2019(hh_data= HH_with_composite, individual_data=indiv_yes_consent, population=population)
+
+HH_severity<- recode_WASH_severity_bgd2019(HH_severity, individual_data = indiv_yes_consent, population=population, wash_combo_table = wash_combo_table)
+
+HH_severity<-recode_SNFI_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
 
 HH_severity<-recode_HEALTH_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
 HH_severity<-recode_EDUCATION_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
+HH_severity<-recode_PROTECTION_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
 
 HH_severity<-butteR::questionnaire_factorize_categorical(HH_severity,questionnaire = HH_kobo_questionnaire,return_full_data = TRUE )
 
@@ -111,7 +130,7 @@ pop<-pop %>%
   pop[[sf_strata]]<-if_else(pop[[sf_strata]] =="Teknaf Sadar" , "Teknaf",pop[[sf_strata]]) 
 } 
 
-
+# pop%>% write.csv("pops.csv")
 # CLEAN POPULATION DATA ---------------------------------------------------
 
 
@@ -159,6 +178,7 @@ HH_srv$variables[,severity_sector_finals]<-lapply(HH_srv$variables[,severity_sec
 
 ```
 
+##HEALTH
 ```{r,fig.height=10}
 severity_sub_component_graphs<-list()
 for(i in 1:length(severity_sub_component_nfi)){
@@ -221,7 +241,6 @@ severity_sector_final_graphs
 
 
 ```
-##HEALTH
 
 ```{r}
 overall_intermediate_health_graphs
@@ -230,7 +249,7 @@ overall_intermediate_health_graphs
 
 ````
 
-
+##EDUCATION
 ```{r,fig.height=20, out.width= "100%"}
 
 stratified_intermediate_health_graphs
@@ -238,8 +257,21 @@ stratified_intermediate_health_graphs
 overall_intermediate_education_graphs
 ````
 
+##WASH
+###BY VULNERABILITIES
+```{r}
+
+```
 
 
+
+
+##PROTECTION
+###By Vulnerabilities
+
+```{r}
+
+```
 ##By vulnearbility criteria
 
 ```{r}
@@ -327,4 +359,94 @@ my_map2<-tm_shape(severity_spatial) +
 
 ```
 
+#INTERSECTORAL
 
+
+```{r}
+  getmode <- function(v) {
+    uniqv <- unique(v)
+    uniqv[which.max(tabulate(match(v, uniqv)))]
+  }
+norm_vec <- function(x) sqrt(sum(x^2))
+lp_vec<-function(x)((sum(x^2)))^(1/(length(x)))
+# lp_vec2<-function(x)(sum(x^2))^(1/5)
+lp_vecb<-function(x)(sum(x^(1/length(x))))^length(x)
+
+lp_vecc<-function(x)(sum(x^(length(x))))^(1/length(x))
+
+# Hmisc::latexTranslate("((sum(x^(1/length(x))))^length(x))/(length(x)^length(x))")
+
+lp_benini<-function(x) ((sum(x^(1/length(x))))^length(x))/(length(x)^length(x))
+
+# lp_benini<-function(x)(sum(x^1/length(x)))#/(x^length(x))
+
+HH_srv<-as_survey(HH_svy_ob)
+HH_srv2<-HH_srv
+sectoral_totals<-HH_srv %>% select(intersect(starts_with("sev_score"), ends_with(".total"))) %>% colnames()
+HH_srv$variables[,sectoral_totals]<-sapply(HH_srv$variables[,sectoral_totals], as.numeric)
+# sapply(HH_srv$variables[,sectoral_totals], range) %>% range()
+
+HH_srv2$variables<-HH_srv$variables %>% 
+  mutate(
+    sev_score_intersectoral_max.total=apply(HH_srv$variables[,sectoral_totals],1,max),
+    sev_score_intersectoral_mean.total= apply(HH_srv$variables[,sectoral_totals],1, mean),
+    sev_score_intersectoral_mean_round.total=round(sev_score_intersectoral_mean.total,0),
+    sev_score_intersectoral_mean_roundup.total=ceiling(sev_score_intersectoral_mean.total),
+    sev_score_intersectoral_median.total=apply(HH_srv$variables[,sectoral_totals],1, median),
+    sev_score_intersectoral_mode.total=apply(HH_srv$variables[,sectoral_totals],1, getmode),
+    # sev_score_intersectoral_norm.total=apply(HH_srv$variables[,sectoral_totals],1, norm_vec),
+    sev_score_intersectoral_l2norm.total=apply(HH_srv$variables[,sectoral_totals] %>% as.matrix,1, Rtreemix::L2.norm),
+    sev_score_intersectoral_lp_benini.total=apply(HH_srv$variables[,sectoral_totals], 1,lp_benini),#/(length(sectoral_totals)^length(sectoral_totals)),
+    # sev_score_intersectoral_lpnorm.total=apply(HH_srv$variables[,sectoral_totals] ,1, lp_vec),
+    # sev_score_intersectoral_lpnorm2.total=apply(HH_srv$variables[,sectoral_totals] ,1, lp_vec2),
+    # sev_score_intersectoral_lpvecb.total=apply(HH_srv$variables[,sectoral_totals] ,1, lp_vecb),
+    sev_score_intersectoral_lpvecc.total=apply(HH_srv$variables[,sectoral_totals] ,1, lp_vecc),
+    sev_score_intersectoral_lpvecc_rescaled.total=scales::rescale(HH_srv2$variables$sev_score_intersectoral_lpvecc.total, to = c(1, 6))
+    
+    
+  )
+
+
+
+
+
+ 
+
+inter_sectoral_totals<-HH_srv2 %>% select(intersect(starts_with("sev_score_intersectoral"), ends_with(".total"))) %>% colnames()
+
+
+HH_srv2$variables[,inter_sectoral_totals]$sev_score_intersectoral_lp_benini.total %>% range()
+
+butteR:::barplot_by_group(HH_srv2,list_of_variables = inter_sectoral_totals,aggregation_level = NULL ,binary=FALSE)+ggtitle("intersectoral severity scores")
+# butteR::barplot_grouped_binaries(HH_srv2,list_of_variables = all_sectoral_totals,aggregation_level = NULL)
+
+# butteR:::barplot_by_group(HH_srv2,list_of_variables = all_sectoral_totals,aggregation_level = strata ,binary=FALSE)
+
+
+intersectoral_matrix_with_sectoral<- HH_srv2$variables[,c(sectoral_totals,"sev_score_intersectoral_mean.total")]
+# pca_intersectoral_matrix_with_sectoral<-princomp(x = intersectoral_matrix_with_sectoral)
+pca_intersectoral_matrix_with_sectoral<-prcomp(intersectoral_matrix_with_sectoral, scale=TRUE)
+# fit <- prcomp(USArrests, scale=T)
+
+
+# ggbiplot::
+
+
+```
+
+###INTERSECTORAL SEVERITIES ANALYZED
+
+```{r}
+
+all_severity_totals<-HH_srv %>% select(intersect(starts_with("sev_score"), ends_with(".total"))) %>%colnames()
+
+
+# HH_srv2$variables[,all_severity_totals]<-sapply(HH_srv2$variables[,all_severity_totals],as.integer) 
+
+
+
+all_severity_totals_by_camp<-butteR::mean_proportion_table(design = HH_srv2, list_of_variables =  all_severity_totals, aggregation_level = "camp_name",questionnaire = HH_kobo_questionnaire, return_confidence = FALSE)
+
+
+
+```
