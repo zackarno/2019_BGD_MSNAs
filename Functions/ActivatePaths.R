@@ -26,6 +26,7 @@ if(user=="zack"){
       dap_population_name<-"hc_only" 
       sf_strata<- "Union"
       wash_error_path<-"Inputs/DAPs/MSNA_Host_Water_Quant_delete.csv"
+      spatial_strata= "adm4_en"
     }}
     if( data_process=="checking"){
       HH_path<-"Inputs/Host_Community/02_data_collection/HH_HC_MSNA.csv"
@@ -99,6 +100,7 @@ if(user=="zack"){
       strata_boundary_layer<-"190310_Outline_Rohingya_Refugee_Camp_A1"
       dap_population_name<-"ref_only" 
       wash_error_path<-"Inputs/DAPs/MSNA_Ref_Water_Quant_delete.csv"
+      spatial_strata= "New_Camp_N"
       
     }
     if (data_process== "checking") {

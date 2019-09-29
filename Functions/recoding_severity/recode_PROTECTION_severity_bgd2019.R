@@ -135,7 +135,7 @@ recode_PROTECTION_severity_bgd2019<- function(hh_data,individual_data, populatio
                                                                                       if_else(gbv_support.dont_know==1,15,99)))))),
       
       int.protection.sub.mental_phys.child_marriage= if_else(child_marriage=="yes",1,0, missing=0),
-      int.protection.sub.mental_phys.separated_child= I.HH.CP.sep_unaccom_minor_atleast_one.INDVHH=="yes"
+      int.protection.sub.mental_phys.separated_child=I.CP.sep_unaccom_minor_atleast_one.INDVHH=="yes"
     )
   
 
@@ -225,7 +225,7 @@ hh_data<-left_join(hh_data ,ind_to_hh,  by=c("X_uuid"="X_submission__uuid")) %>%
     hh_data<-hh_data %>% 
       mutate(
         int.protection.sub.security.tensions_rowsum= rowSums(.[tension_columns], na.rm=TRUE),
-        int.sev_score.protection.sub.security.tensions=if_else(is.na(int.protection.sub.security.tensions_rowsum),1,
+        int.sev_score.protection.sub.security.tensions=if_else(tension=="no",1,
                                                                if_else(int.protection.sub.security.tensions_rowsum==1,2,
                                                                        if_else(int.protection.sub.security.tensions_rowsum<4,3,
                                                                                if_else(int.protection.sub.security.tensions_rowsum<7,4,
@@ -260,7 +260,7 @@ hh_data<-left_join(hh_data ,ind_to_hh,  by=c("X_uuid"="X_submission__uuid")) %>%
                                                                         if_else(int.sev_score.protection.mental_phys.s1==1,0, 99))))
         
       )
-]
+
   }
   
   if(population=="Refugee"){

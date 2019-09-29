@@ -3,7 +3,7 @@
 
 rm(list=ls())
 user<-c("zack", "mehedi")[1]
-population<-c("Host","Refugee")[2]
+population<-c("Host","Refugee")[1]
 data_process<-c("checking", "cleaning", "analysis")[3]
 analysis_phase<-c("basic","relationship_testing")[1]
 # write_output<-c("yes","no")[1]
@@ -36,7 +36,7 @@ HH_kobo_questionnaire<-koboquest::load_questionnaire(HH,questions = HH_kobo_ques
 Indiv_kobo_questionnaire<-koboquest::load_questionnaire(Indiv,questions = HH_kobo_questions,choices = HH_kobo_choices, choices.label.column.to.use = "label..english")
 
 #LOAD DAP
-dap<- read.csv("Inputs/DAPs/MSNA_DAP_BasicAnalysis_All_Changes_Together_23SepMM.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+dap<- read.csv("Inputs/DAPs/MSNA_DAP_BasicAnalysis_All_Changes_Together_24SepMM.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
 
 #LOAD POPULATION DATA
@@ -83,7 +83,6 @@ dap_break_downs$for_na_replace<-dap %>%
   filter(!is.na(na_replace)) %>% 
   filter(dataset %in% c(dap_population_name, "both"))
 # dap %>% filter(!is.na(na_replace))
-
 
 # dap %>%
 #   filter(!is.na(na_replace))
@@ -159,32 +158,35 @@ variables_to_analyze<-dap_break_downs$dap_basic_hh$variable  %>% trimws()
 # HH_svy_ob$variables$feel_unsafe_female
 # variables_to_analyze %>% sort()
 # HH_svy_ob$<variables$feel_unsafe_female
+
+variables_to_analyze<-c(variables_to_analyze,
+                        HH_svy_ob$variables %>% select(starts_with("hh_coping_mechanism."),
+                                                       starts_with("debt_reason."),
+                                                       starts_with("unsafe_reason_female.")) %>% colnames())
+
+
+# variables_to_analyze %>% sort()
 variables_to_analyze<-variables_to_analyze[variables_to_analyze!="I.HH_CHAR.childheaded_households.HH"]
-# 
+#
+
 # variables_to_analyze<- c(variables_to_analyze,HH_svy_ob$variables %>% select(starts_with("unsafe_reason_female.")) %>% colnames())
 # HH_kobo_questionnaire$question_is_select_multiple("unsafe_reason_female")
 
 basic_analysis_without_cis<-list()
-# debugonce(butteR::mean_proportion_table)
-# basic_analysis_without_cis
-# debugonce(butteR::mean_proportion_table)
-HH_svy_ob$variables$I.HH_CHAR.childheaded_households.HH
+
 basic_analysis_without_cis[["overall"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                        list_of_variables = variables_to_analyze,
                                                                        aggregation_level = NULL,
                                                                        round_to = 2,return_confidence = FALSE,na_replace = FALSE,
                                                                        questionnaire = HH_kobo_questionnaire)
 
-# HH_kobo_questionnaire$question_is_select_multiple("unsafe_reason_female")
 
-# HH_svy_ob$variables$feel_unsafe_female
-
-# basic_analysis_without_cis$overall$unsafe_reason
 basic_analysis_without_cis[["by_strata"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                          list_of_variables = variables_to_analyze,
                                                                          aggregation_level = strata,
                                                                          round_to = 2,return_confidence = FALSE,na_replace = FALSE,
                                                                          questionnaire = HH_kobo_questionnaire)
+
 
 basic_analysis_without_cis[["by_respondent_gender"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
                                                                                     list_of_variables = variables_to_analyze,
@@ -209,10 +211,12 @@ for(i in 1:length(basic_analysis_without_cis)){
 basic_analysis_without_cis<-list()
 variables_to_analyze<-dap_break_downs$for_na_replace$variable %>% trimws()
 
+
 if (population=="Refugee"){
   variables_to_analyze<-c(variables_to_analyze, HH_svy_ob$variables %>% select(starts_with("debt_reason.")) %>% colnames())
   
 }
+
 
 # debugonce(butteR::mean_proportion_table)
 basic_analysis_without_cis[["overall_na_replace"]]<-butteR::mean_proportion_table(design = HH_svy_ob, 
@@ -239,6 +243,31 @@ for(i in 1:length(basic_analysis_without_cis)){
   name_of_file<-paste0(date_for_title,"_",population,"_HH_DAP_Simple_",type_of_analysis,"_", ".csv")
   write.csv(basic_analysis_without_cis[[type_of_analysis]],paste0("Outputs/",name_of_file) )
 }
+
+
+# 
+
+marital_status_by_gender_hoh<-svyby(formula = ~hoh_marital, by = ~I.HH_CHAR.gender_hoh.HH,design = HH_svy_ob,FUN = svymean, na.rm=TRUE)
+
+# HH_srv<-as_survey(HH_svy_ob)
+marital_status_by_gender_hoh<-HH_srv %>% 
+  group_by(hoh_marital,I.HH_CHAR.gender_hoh.HH) %>% 
+  summarise(asdf=survey_mean(na.rm=TRUE))
+
+ind_srv<-as_survey(ind_svy_ob)
+ind_srv$variables$I.INDV_CHAR.age_groups_demographics.INDV
+
+ind_svy_ob$variables$I.INDV_CHAR.age_groups_demographics.INDV<-as.factor(ind_svy_ob$variables$I.INDV_CHAR.age_groups_demographics.INDV)
+ind_svy_ob$variables$ind_gender<-as.factor(ind_svy_ob$variables$ind_gender)
+
+svyby(formula = ~I.INDV_CHAR.age_groups_demographics.INDV, by = ~ind_gender,design = ind_svy_ob,FUN = svyciprop)
+svyby(formula = ~ind_gender, by = ~I.INDV_CHAR.age_groups_demographics.INDV,design = ind_svy_ob,FUN = svymean)
+
+# svytable(~I.INDV_CHAR.age_groups_demographics.INDV+ind_gender, ind_svy_ob) %>% prop.table
+
+# marital_status_by_gender_hoh<-ind_srv %>% 
+#   group_by(ind_gender,I.INDV_CHAR.age_groups_demographics.INDV) %>% 
+#   summarise(asdf=survey_mean(na.rm=TRUE))
 
 
 # WITH CONFIDENC INTERVALS IF YOU WANT
@@ -269,8 +298,7 @@ variables_to_analyze<-dap_break_downs$dap_basic_indiv$variable %>% trimws()
 variables_to_analyze %>% unique() %>% sort()
 # dap %>% View()
 #JUST ADDING ONE VARIA)BLE CLASS INTEGER SO THAT BUTTER WILL RUN (NEED TO UPDATE THIS IN THE butteR package)
-variables_to_analyze_good<- c(variables_to_analyze)#,"ind_why_notreatment.treatment_expensive")
-ind_svy_ob$variables[[variables_to_analyze_good[5]]]
+variables_to_analyze_good<- c(variables_to_analyze)
 
 #FACTORIZE THE INDIVIDUAL DATA -- WILL NOT ACTUALLY USE THE QUESTIONNAIRE- SO WARNING DOESNT MATTER
 # ind_svy_ob$variables<- butteR::questionnaire_factorize_categorical(data = ind_svy_ob$variables, questionnaire = HH_kobo_questionnaire,return_full_data = TRUE)
@@ -323,11 +351,36 @@ variables_to_analyze<-subset_by_ind_gender$variable %>% trimws()
 
 #WE WANT TO SUBSET THIS BY GENDER
 
-ind_svy_ob$variables<-ind_svy_ob$variables %>% filter(ind_gender!= "other")
-gender_subsets<-split(ind_svy_ob$variables, ind_svy_ob$variables$ind_gender)
+# ind_svy_ob$variables<-ind_svy_ob$variables %>% filter(ind_gender!= "other")
+# gender_subsets<-split(ind_svy_ob$variables, ind_svy_ob$variables$ind_gender)
+
+male_hoh<-HH_svy_ob %>% subset(I.HH_CHAR.gender_hoh.HH=="male") %>% as_survey()
+female_hoh<-HH_svy_ob %>% subset(I.HH_CHAR.gender_hoh.HH=="female") %>% as_survey()
+
+hoh_marital_male_hoh<-male_hoh %>% 
+  group_by(hoh_marital) %>% 
+  summarise(
+    hoh_marital_male_hoh=survey_mean(na.rm = TRUE)
+  )
+
+hoh_marital_female_hoh<-female_hoh %>% 
+  group_by(hoh_marital) %>% 
+  summarise(
+    hoh_marital_female_hoh=survey_mean(na.rm = TRUE)
+  )
 
 
 
+
+
+if(population=="Refugee"){
+  write.csv(hoh_marital_male_hoh, "Outputs/Refugee/2019_09_24_Refugee_marital_status_subset_male_hoh.csv")
+  write.csv(hoh_marital_female_hoh, "Outputs/Refugee/2019_09_24_Refugee_marital_status_female_hoh.csv")
+}
+if(population=="Host"){
+  write.csv(hoh_marital_male_hoh, "Outputs/Host/2019_09_24_Host_marital_status_subset_male_hoh.csv")
+  write.csv(hoh_marital_female_hoh, "Outputs/Host/2019_09_24_Host_marital_status_female_hoh.csv")
+}
 analyzed_overall<-list()
 analyzed_by_respondent_gender<-list()
 analyzed_by_camp<-list()
@@ -377,13 +430,13 @@ for(analysis_name in names(analysis_by_ind_gender)){
 # # INDIVIDUAL SUBSET BY EDUCATION AGE GROUPS -------------------------------
 # 
 # 
-# 
 
 ind_svy_ob$variables<-ind_svy_ob$variables %>% 
   mutate(ind_gender=if_else(ind_gender=="male", "male", "female", missing=NULL))
 
 subset_groups<-split(dap_break_downs$dap_subsets_indiv,dap_break_downs$dap_subsets_indiv$subset)
-
+dap_break_downs$dap_subsets_indiv %>% data.frame()
+dap %>% data.frame()
 # list_of_surveys_by_subset %>% names()
 analyzed_overall<-list()
 analyzed_by_camp<-list()
@@ -391,7 +444,7 @@ analyzed_by_respondent_gender<-list()
 overall_analysis<-list()
 by_strata<-list()
 by_resp_gender<-list()
-overall_binded<-list()
+# overall_binded<-list()
 names(subset_groups)
 #dont want to subset each one by everything-- only variable by variable
 for (i in 1: length(subset_groups)){
@@ -411,25 +464,74 @@ for (i in 1: length(subset_groups)){
                                   weights= ~weights,
                                   data = list_of_surveys_by_subset[[name_of_subset_survey]])
     # analyzed_overall[[subset_group]]
-    analyzed_overall[[i]]<-  butteR::mean_proportion_table(design = new_design,
+    analyzed_overall[[paste0(name_of_subset_in_DAP,"_", name_of_subset_survey)]]<-  butteR::mean_proportion_table(design = new_design,
                                                            list_of_variables = variables_to_analyze,
                                                            aggregation_level = NULL,
                                                            round_to = 2,return_confidence = FALSE,na_replace = FALSE, questionnaire = Indiv_kobo_questionnaire)
     # analyzed_by_camp[[subset_group]]
-    analyzed_by_camp[[i]]<-  butteR::mean_proportion_table(design = new_design,
+    analyzed_by_camp[[paste0(name_of_subset_in_DAP,"_", name_of_subset_survey)]]<-  butteR::mean_proportion_table(design = new_design,
                                                            list_of_variables = variables_to_analyze,
                                                            aggregation_level = strata,
                                                            round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = Indiv_kobo_questionnaire)
     # analyzed_by_respondent_gender[[subset_group]]
-    analyzed_by_respondent_gender[[i]]<-  butteR::mean_proportion_table(design = new_design,
+    analyzed_by_respondent_gender[[paste0(name_of_subset_in_DAP,"_", name_of_subset_survey)]]<-  butteR::mean_proportion_table(design = new_design,
                                                                         list_of_variables = variables_to_analyze,
                                                                         aggregation_level = "respondent_gender",
                                                                         round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = Indiv_kobo_questionnaire)
     
     # date_for_title<-stringr::str_replace_all(Sys.Date(),"-","_")
   }
-  overall_binded[[i]]<-do.call(analyzed_overall, "rbind")}
+  overall_analysis[[name_of_subset_in_DAP]]<-analyzed_overall
+  by_strata[[name_of_subset_in_DAP]]<-analyzed_by_camp
+  by_resp_gender[[name_of_subset_in_DAP]]<-analyzed_by_respondent_gender
+}
 
+age_group_education<-do.call("smartbind",overall_analysis$I.EDU.age_group_education.INDV)
+age_group_health<-do.call("smartbind", overall_analysis$I.HEALTH.age_groups_medical.INDV)
+subsets_together_overall<-do.call("smartbind", overall_analysis$ind_gender) 
+
+age_group_education<-do.call("smartbind",sapply(by_strata$I.EDU.age_group_education.INDV, as.data.frame))
+age_group_health<-do.call("smartbind", by_strata$I.HEALTH.age_groups_medical.INDV)
+subsets_together_by_strata<-do.call("smartbind", sapply(by_strata$ind_gender, as.data.frame))
+
+
+
+asdf<-sapply(by_strata$I.EDU.age_group_education.INDV, as.data.frame)
+age_group_education<-do.call("smartbind",sapply(by_strata$I.EDU.age_group_education.INDV, as.data.frame))
+age_group_health<-do.call("smartbind", by_strata$I.HEALTH.age_groups_medical.INDV)
+subsets_together_by_resp_gender<-do.call("smartbind", sapply(by_resp_gender$ind_gender, as.data.frame))
+
+
+
+if (population=="Host"){
+  write.csv(subsets_together_overall,"Outputs/subsets/2019_09_24_Host_Subsets_Overall.csv")
+  write.csv(subsets_together_by_strata,"Outputs/subsets/2019_09_24_Host_Subsets_By_Strata.csv")
+  write.csv(subsets_together_by_resp_gender,"Outputs/subsets/2019_09_24_Host_Subsets_By_Resp_gender.csv")
+}
+if(population=="Refugee"){
+  write.csv(subsets_together_overall,"Outputs/subsets/2019_09_24_Refugee_Subsets_Overall.csv")
+  write.csv(subsets_together_by_strata,"Outputs/subsets/2019_09_24_Refugee_Subsets_By_Strata.csv")
+  write.csv(subsets_together_by_resp_gender,"Outputs/subsets/2019_09_24_Refugee_Subsets_By_Resp_gender.csv")
+  
+}
+
+
+#######################################################
+
+
+asdf<-overall_analysis[unlist(stringr::str_detect(names(analyzed_overall),"I.EDU.age_group_education.INDV"))]
+overall_analysis[stringr::str_detect(names(analyzed_overall),"I.EDU.age_group_education.INDV")]
+
+overall_analysis[[which([[stringr::str_detect(names(analyzed_overall),"I.EDU.age_group_education.INDV")]])]]
+
+analyzed_overall$`I.EDU.age_group_education.INDV_3-4`
+analyzed_overall[[]]
+asdf<-purrr::map(analyzed_overall, ~ unlist(.[1:4]))
+analyzed_overall$ind_gender_male
+analyzed_overall$`12-17`
+overall_binded$I.EDU.age_group_education.INDV
+analyzed_overall
+sapply(overall_binded,function(x) x[2])
   # all_analysis[[name_of_subset_in_DAP]]<-list(analyzed_overall,analyzed_by_camp,analyzed_by_respondent_gender)
   # overall_analysis[[name_of_subset_in_DAP]][,i]<-analyzed_overall
   # by_strata[[name_of_subset_in_DAP]][[i]]<-analyzed_by_camp

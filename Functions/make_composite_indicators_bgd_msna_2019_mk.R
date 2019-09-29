@@ -91,10 +91,17 @@ indiv_to_hh <- individual_data %>%
                     I.P.married_women_no_work_market_alone.HH = if_else(married_work_mobility == "never_alone" & married_market_mobility == "never_alone","yes","no"),
                     I.P.unmarried_women_no_work_market_alone.HH =  if_else(unmarried_work_mobility == "never_alone" & unmarried_market_mobility == "never_alone" , "yes","no"),
                     enough_water_without_drinking_rowsum = rowSums(enough_water_without_drinking),
+                    
                     I.WASH.enough_water_all_needs.HH = if_else( enough_water_without_drinking_rowsum + enough_water.drinking == 4 , "yes","no",NULL),
-                    I.WASH.enough_drinking_only_andnot_oneother.HH = if_else(enough_water.drinking == 1 & enough_water_without_drinking_rowsum ==2 ,"yes","no",NULL),
-                    I.WASH.enough_drinking_only_andnot_twoothers.HH = if_else(enough_water.drinking == 1 & enough_water_without_drinking_rowsum ==1 ,"yes","no",NULL),
-                    I.WASH.enough_drinking_only_andnot_threeothers.HH= if_else(enough_water.drinking == 1 & enough_water_without_drinking_rowsum == 0 ,"yes","no",NULL),
+                    # I.WASH.enough_drinking_only_andnot_oneother.HH = if_else(enough_water.drinking == 1 & enough_water_without_drinking_rowsum ==2 ,"yes","no",NULL),
+                    I.WASH.enough_drinking_and_two_other.HH = if_else(enough_water.drinking == 1 & enough_water_without_drinking_rowsum ==2 ,"yes","no",NULL),
+                    I.WASH.enough_drinking_and_one_other.HH = if_else(enough_water.drinking == 1 & enough_water_without_drinking_rowsum ==1 ,"yes","no",NULL),
+                    I.WASH.enough_drinking_only.HH= if_else(enough_water.drinking == 1 & enough_water_without_drinking_rowsum == 0 ,"yes","no",NULL),
+                    
+                    # I.WASH.enough_water_all_needs.HH = if_else( enough_water_without_drinking_rowsum + enough_water.drinking == 4 , "yes","no",NULL),
+                    # I.WASH.enough_drinking_only_andnot_oneother.HH = if_else(enough_water.drinking == 1 & enough_water_without_drinking_rowsum ==2 ,"yes","no",NULL),
+                    # I.WASH.enough_drinking_only_andnot_twoothers.HH = if_else(enough_water.drinking == 1 & enough_water_without_drinking_rowsum ==1 ,"yes","no",NULL),
+                    # I.WASH.enough_drinking_only_andnot_threeothers.HH= if_else(enough_water.drinking == 1 & enough_water_without_drinking_rowsum == 0 ,"yes","no",NULL),
                     I.WASH.visible_faeces_stagwater_waste_accom.HH =if_else(stagnant_water == "yes" & visible_faeces == "yes" & visible_waste == "yes", "yes","no",NULL),
                     I.FCS_score = (cereals_tubers*2 + pulses_nuts_seeds*3 +
                                      vegetables*1 + fruits*1 +dairy*4 +
@@ -250,7 +257,7 @@ hh_to_hh <- hh_with_individual_level_data %>%
                           I.EDU.age_group_education.INDV = if_else(ind_age %in% 3:4,"3-4",
                                                                    if_else(ind_age %in% 5:11,"5-11",
                                                                            if_else(ind_age %in% 12:17,"12-17",
-                                                                                   if_else(ind_age %in% 18:24,"18-24","999",NULL))))
+                                                                                   if_else(ind_age %in% 18:24,"18-24",NULL,NULL))))
                           
     ) %>%  select(X_index,starts_with("I."))
 

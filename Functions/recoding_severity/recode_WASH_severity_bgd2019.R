@@ -72,7 +72,7 @@ recode_WASH_severity_bgd2019<- function(hh_data,individual_data, population, was
         int.wash.drnk_pipe_wash_pipe= water_source_drink.pipe_water==1 &  water_source_wash.pipe_water==1,
         
         int.wash.improved_water_drinking= water_source_drink.tubewells | water_source_drink.protected_spring|
-          water_source_drink.cart_small_tank| water_source_drink.protected_dugwell|water_source_drink.tanker_truck|water_source_drink.pipe_water|water_source_drink.rainwater_collected,
+          water_source_drink.cart_small_tank| water_source_drink.protected_dugwell|water_source_drink.tanker_truck|water_source_drink.pipe_water|water_source_drink.rainwater_collected|water_source_drink.bottled_water,
         
         int.wash.improved_water_wash= water_source_wash.tubewells | water_source_wash.protected_spring|
           water_source_wash.cart_small_tank| water_source_wash.protected_dugwell|water_source_wash.tanker_truck|water_source_wash.pipe_water,
@@ -111,10 +111,10 @@ recode_WASH_severity_bgd2019<- function(hh_data,individual_data, population, was
                                                                            if_else(int.wash.sub.living_standards.water_source.s3==1, 3,
                                                                                    if_else(int.wash.sub.living_standards.water_source.s2==1,2,99))))),
         
-        sev_score.wash.sub.coping.water = if_else(surface_water_access %in% c("never", "dont_know"),1,
+        int.sev_score.wash.sub.coping.water = if_else(surface_water_access %in% c("never", "dont_know"),1,
                                                   if_else(surface_water_access== "couple_times",3,
                                                           if_else(surface_water_access== "almost_everyday",5,99))),
-        sev_score.was.sub.coping.hygiene = if_else(exp_hygiene !=  "0_bdt",3,1),
+        int.sev_score.was.sub.coping.hygiene = if_else(exp_hygiene !=  "0_bdt",3,1),
         #BUILD THIS FUCKING WEIGHT
         index.wash.unsafe_male = if_else(feel_unsafe_male.latrine| feel_unsafe_male.water_points| feel_unsafe_male.bathing_areas| 
                                            feel_unsafe_male.distribution_points|feel_unsafe_male.way_to_facilities,2,
@@ -182,24 +182,25 @@ recode_WASH_severity_bgd2019<- function(hh_data,individual_data, population, was
         living_standards_subs_rowsums2=rowSums(sapply(hh_data[,living_standards_subs], function(x) ifelse(x==2, TRUE,FALSE))),
         living_standards.s6<-if_else((int.wash.sub.living_standards.quantity==6 |
                                         int.wash.sub.living_standards.water_source==6 |int.wash.sub.living_standards.sanitation==6)|
-                                       living_standards_subs_rowsums5>1,1,0),
+                                       living_standards_subs_rowsums5>2,1,0),
+        
         six_test=if_else(int.wash.sub.living_standards.quantity==6 |
                            int.wash.sub.living_standards.water_source==6 |int.wash.sub.living_standards.sanitation==6,1,0),
         five_test=if_else(living_standards_subs_rowsums5>1,1,0), 
-        living_standards.s5<- if_else(living_standards_subs_rowsums5>0,1,0),
+        living_standards.s5<- if_else(living_standards_subs_rowsums5>1,1,0),
         living_standards.s4<- if_else(living_standards_subs_rowsums4>1,1,0),
         living_standards.s3<- if_else(living_standards_subs_rowsums3>1|living_standards_subs_rowsums4==1, 1,0),
         living_standards.s2<- if_else(living_standards_subs_rowsums2>1|living_standards_subs_rowsums3==1, 1,1, missing = 99),
-        sev_score.living_standards.subtotal=if_else(living_standards.s6==1,6,
+        sev_score.wash.sub.living_standards=if_else(living_standards.s6==1,6,
                                                     if_else(living_standards.s5==1,5,
                                                             if_else(living_standards.s4==1, 4,
                                                                     if_else(living_standards.s3==1, 3,
                                                                             if_else(living_standards.s2==1,2,99))))))
     hh_data<-hh_data %>% 
       mutate(
-        sev_score.coping.subtotal=  apply(hh_data[,c("sev_score.wash.sub.coping.water","sev_score.was.sub.coping.hygiene")],1,max) ,
-        sev_score.wellbeing.subtotal=  apply(hh_data[,c("int.wash.sub.wellbeing.safety_index","int.wash.sub.wellbeing.diarh")],1,max),
-        coping_wellbeing_combo= paste0(sev_score.coping.subtotal,"_",sev_score.wellbeing.subtotal),
+        sev_score.wash.sub.coping=  apply(hh_data[,c("int.sev_score.wash.sub.coping.water","int.sev_score.was.sub.coping.hygiene")],1,max) ,
+        sev_score.wash.sub.wellbeing=  apply(hh_data[,c("int.wash.sub.wellbeing.safety_index","int.wash.sub.wellbeing.diarh")],1,max),
+        coping_wellbeing_combo= paste0(sev_score.wash.sub.coping,"_",sev_score.wash.sub.wellbeing),
         
       )
     
@@ -210,8 +211,8 @@ recode_WASH_severity_bgd2019<- function(hh_data,individual_data, population, was
     
     hh_data<-hh_data %>% 
       mutate(
-        sev_score.wash.total=ifelse(sev_score.living_standards.subtotal > sev_score.coping.subtotal|
-                                      sev_score.living_standards.subtotal > sev_score.wellbeing.subtotal,sev_score.living_standards.subtotal,Final)
+        sev_score.wash.total=ifelse(sev_score.wash.sub.living_standards > sev_score.wash.sub.coping|
+                                      sev_score.wash.sub.living_standards > sev_score.wash.sub.wellbeing,sev_score.wash.sub.living_standards,Final)
       )
   }
   
@@ -240,7 +241,8 @@ recode_WASH_severity_bgd2019<- function(hh_data,individual_data, population, was
         int.wash.sub.living_standards.sanitation=if_else(int.wash.sub.living_standards.sanitation.s6==1,6,
                                                          # if_else(int.wash.sub.living_standards.sanitation.s5==1,5,
                                                          if_else(int.wash.sub.living_standards.sanitation.s4==1, 4,
-                                                                 if_else(int.wash.sub.living_standards.sanitation.s2==1,2,99))),
+                                                                 if_else(int.wash.sub.living_standards.sanitation.s2==1,2,
+                                                                         if_else(int.wash.sub.living_standards.sanitation.s1==1,1,99)))),
         
         # int.wash.sub.living_standards.soap= if_else(soap=="yes",2,
                                                     # if_else(soap=="no", 4,99)),
@@ -255,7 +257,7 @@ recode_WASH_severity_bgd2019<- function(hh_data,individual_data, population, was
       group_by(!!sym(strata)) %>% 
       summarise(mode.int.wash.sub.living_standards.quantity=getmode(int.wash.sub.living_standards.quantity))
     
-    fixed_water_quantity<-hh_data[rows_to_fix,c("X_uuid","camp_name")] %>% left_join(mode_int, by="camp_name")
+    fixed_water_quantity<-hh_data[rows_to_fix,c("X_uuid",strata)] %>% left_join(mode_int, by=strata)
     
     hh_data$int.wash.sub.living_standards.quantity<-ifelse(hh_data$X_uuid %in%
                                                              fixed_water_quantity$X_uuid,
@@ -278,7 +280,7 @@ recode_WASH_severity_bgd2019<- function(hh_data,individual_data, population, was
         int.wash.drnk_pipe_wash_pipe= water_source_drink.pipe_water==1 &  water_source_wash.pipe_water==1,
         
         int.wash.improved_water_drinking= water_source_drink.tubewells | water_source_drink.protected_spring|
-          water_source_drink.cart_small_tank| water_source_drink.protected_dugwell|water_source_drink.tanker_truck|water_source_drink.pipe_water|water_source_drink.rainwater_collected,
+          water_source_drink.cart_small_tank| water_source_drink.protected_dugwell|water_source_drink.tanker_truck|water_source_drink.pipe_water|water_source_drink.rainwater_collected|water_source_drink.bottled_water,
         
         int.wash.improved_water_wash= water_source_wash.tubewells | water_source_wash.protected_spring|
           water_source_wash.cart_small_tank| water_source_wash.protected_dugwell|water_source_wash.tanker_truck|water_source_wash.pipe_water,
@@ -318,7 +320,7 @@ recode_WASH_severity_bgd2019<- function(hh_data,individual_data, population, was
                                                                                    if_else(int.wash.sub.living_standards.water_source.s2==1,2,99))))),
         
         
-        sev_score.wash.sub.coping.water = if_else(surface_water_access %in% c("never", "dont_know"),1,
+         int.sev_score.wash.sub.coping.water = if_else(surface_water_access %in% c("never", "dont_know"),1,
                                                   if_else(surface_water_access== "couple_times",3,
                                                           if_else(surface_water_access== "almost_everyday",5,99))),
         
@@ -375,25 +377,25 @@ recode_WASH_severity_bgd2019<- function(hh_data,individual_data, population, was
         living_standards_subs_rowsums1=rowSums(sapply(hh_data[,living_standards_subs], function(x) ifelse(x==1, TRUE,FALSE))),
         living_standards.s6<-if_else((int.wash.sub.living_standards.quantity==6 |
                                         int.wash.sub.living_standards.water_source==6 |int.wash.sub.living_standards.sanitation==6)|
-                                       living_standards_subs_rowsums5>1,1,0),
+                                       living_standards_subs_rowsums5>2,1,0),
         six_test=if_else(int.wash.sub.living_standards.quantity==6 |
                            int.wash.sub.living_standards.water_source==6 |int.wash.sub.living_standards.sanitation==6,1,0),
         five_test=if_else(living_standards_subs_rowsums5>1,1,0), 
-        living_standards.s5<- if_else(living_standards_subs_rowsums5>0,1,0),
+        living_standards.s5<- if_else(living_standards_subs_rowsums5>1,1,0),
         living_standards.s4<- if_else(living_standards_subs_rowsums4>1,1,0),
         living_standards.s3<- if_else(living_standards_subs_rowsums3>1|living_standards_subs_rowsums4==1, 1,0),
         living_standards.s2<- if_else(living_standards_subs_rowsums2>1|living_standards_subs_rowsums3==1, 1,0, missing = 99),
         living_standards.s1<- if_else(living_standards_subs_rowsums1>0|living_standards_subs_rowsums2<2, 1,0, missing = 99),
         
-        sev_score.living_standards.subtotal=if_else(living_standards.s6==1,6,
+        sev_score.wash.sub.living_standards=if_else(living_standards.s6==1,6,
                                                     if_else(living_standards.s5==1,5,
                                                             if_else(living_standards.s4==1, 4,
                                                                     if_else(living_standards.s3==1, 3,
                                                                             if_else(living_standards.s2==1,2,
                                                                                     if_else(living_standards.s1==1,1,99)))))),
-        sev_score.coping.subtotal=  sev_score.wash.sub.coping.water,
-        sev_score.wellbeing.subtotal=  apply(hh_data[,c("int.wash.sub.wellbeing.safety_index","int.wash.sub.wellbeing.diarh")],1,max),
-        coping_wellbeing_combo= paste0(sev_score.coping.subtotal,"_",sev_score.wellbeing.subtotal),
+        sev_score.wash.sub.coping=   int.sev_score.wash.sub.coping.water,
+        sev_score.wash.sub.wellbeing=  apply(hh_data[,c("int.wash.sub.wellbeing.safety_index","int.wash.sub.wellbeing.diarh")],1,max),
+        coping_wellbeing_combo= paste0(sev_score.wash.sub.coping,"_",sev_score.wash.sub.wellbeing),
         
       )
     
@@ -404,8 +406,8 @@ recode_WASH_severity_bgd2019<- function(hh_data,individual_data, population, was
     
     hh_data<-hh_data %>% 
       mutate(
-        sev_score.wash.total=ifelse(sev_score.living_standards.subtotal > sev_score.coping.subtotal|
-                                      sev_score.living_standards.subtotal > sev_score.wellbeing.subtotal,sev_score.living_standards.subtotal,Final)
+        sev_score.wash.total=ifelse(sev_score.wash.sub.living_standards > sev_score.wash.sub.coping|
+                                      sev_score.wash.sub.living_standards > sev_score.wash.sub.wellbeing,sev_score.wash.sub.living_standards,Final)
       )
     
     

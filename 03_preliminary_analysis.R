@@ -123,18 +123,18 @@ if (population=="Refugee") {
 # spatial cleaning should not be necessary on final data set --------------
 if(data_process=="Checking"){ 
 
-
-
-HH_spatial<-st_as_sf(HH, coords= long_lat, crs=sf::st_crs(strata_spatial))
-boundary_gdb<- "Inputs/GIS"
-strata_spatial<-sf::st_read(boundary_gdb,"190310_Outline_Rohingya_Refugee_Camp_A1", stringsAsFactors=FALSE)
-strata_spatial_utm<- sf::st_transform(strata_spatial, 32646)
-HH_spatial<-sf::st_as_sf(HH,coords= long_lat, crs=sf::st_crs(strata_spatial))
-HH_spatial_utm<- sf::st_transform(HH_spatial, 32646)
-HH_spatial<-sf::st_join(HH_spatial_utm,strata_spatial_utm, st_is_within_distance, dist=10)
-HH_cleaned<-HH_spatial %>% as.data.frame() %>% 
-  select(camp_id=New_Camp_N, everything())
-  } else { HH_cleaned<- HH_data_factorized}
+  
+  
+  HH_spatial<-st_as_sf(HH, coords= long_lat, crs=sf::st_crs(strata_spatial))
+  boundary_gdb<- "Inputs/GIS"
+  strata_spatial<-sf::st_read(boundary_gdb,"190310_Outline_Rohingya_Refugee_Camp_A1", stringsAsFactors=FALSE)
+  strata_spatial_utm<- sf::st_transform(strata_spatial, 32646)
+  HH_spatial<-sf::st_as_sf(HH,coords= long_lat, crs=sf::st_crs(strata_spatial))
+  HH_spatial_utm<- sf::st_transform(HH_spatial, 32646)
+  HH_spatial<-sf::st_join(HH_spatial_utm,strata_spatial_utm, st_is_within_distance, dist=10)
+  HH_cleaned<-HH_spatial %>% as.data.frame() %>% 
+    select(camp_id=New_Camp_N, everything())
+} else { HH_cleaned<- HH_data_factorized}
 
 #  which(HH_spatial$New_Camp_N %>% unique() %in% pop_cleaned$camp_id==FALSE)
 #  (HH_spatial$New_Camp_N %>% unique())[which(HH_spatial$New_Camp_N %>% unique() %in% pop_cleaned$camp_id==FALSE)]

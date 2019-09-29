@@ -58,5 +58,5 @@ recode_FOODSECURITY_severity_bgd2019<- function(hh_data,individual_data, populat
       
     )
 }
-table(hh_data$sev_score.FS.total)
+
 

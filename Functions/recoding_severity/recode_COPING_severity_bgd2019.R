@@ -48,7 +48,7 @@ recode_COPING_severity_bgd2019<- function(hh_data,individual_data, population) {
   }
   
   # common intermediate variables -------------------------------------------
-  HH_rec_step1<-hh_data%>% 
+  hh_data<-hh_data%>% 
     mutate(
       #COPING
       int.coping.spend_savings= income_source.savings|hh_coping_mechanism.spend_savings,
@@ -68,69 +68,14 @@ recode_COPING_severity_bgd2019<- function(hh_data,individual_data, population) {
       sev.coping.s4= hh_coping_mechanism.sell_firewood | hh_coping_mechanism.dependent_neighbour_ration|!!sym(hh_coping_mechanism_migration),
       sev.coping.s5=hh_coping_5| hh_coping_mechanism.withdraw_child_school|
         hh_coping_mechanism.child_marriage|hh_coping_mechanism.inter_marriage|
-        hh_coping_mechanism.begging|hh_coping_mechanism.accept_illegal_job
+        hh_coping_mechanism.begging|hh_coping_mechanism.accept_illegal_job,
+      
+      sev_score.coping.total=if_else(sev.coping.s5==1,5,
+                                   if_else(sev.coping.s4==1,4,
+                                           if_else(sev.coping.s3==1,3,
+                                                   if_else(sev.coping.s2==1,2,
+                                                           if_else(sev.coping.s1==1,1,99)))))
     
     ) 
 
-  # Individual intermediate aggregations ------------------------------------
-  indiv<-individual_data
-  indiv_to_indiv<-indiv %>% 
-    mutate(
-      
-    )
-  
-  at_least_one <- function(variable) {
-    if_else(sum(variable,na.rm = TRUE)>0,1,0)
-    
-  }
-  all_fam <- function(variable) {
-    if_else(mean(variable,na.rm = TRUE)==1,1,0)
-    
-  }
-  
-  indiv_to_indiv %>% 
-    group_by(X_submission__uuid) %>% 
-    summarise(
-      
-    )
-  
-  
-  # Refugee Only ------------------------------------------------------------
-  
-
-  
-  if(population=="Refugee"){
-    HH_rec_step2<-HH_rec_step1 %>% 
-      mutate(
-
-        # int.coping.borrowed_goods=   hh_coping_mechanism.borrowed| food_source_borrowed|income_source.borrowed
-
-      ) 
-    
-
-    
-    HH_rec_step3<-HH_rec_step2 %>% 
-      mutate(
-
-      ) 
-    
-  }
-  
-  if(population=="Host"){
-    HH_rec_step2<-HH_rec_step1 %>% 
-      mutate(
-        # int.coping.borrowed_goods=   hh_coping_mechanism.borrowed| food_source_borrowed
-      ) 
-    
-    
-
-    HH_rec_step3<-HH_rec_step2 %>% 
-      mutate(
-      ) 
-    
-  }
-  
-  
-  
 }
-
