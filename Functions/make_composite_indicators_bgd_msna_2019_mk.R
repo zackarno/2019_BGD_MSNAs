@@ -124,7 +124,7 @@ indiv_to_hh <- individual_data %>%
    
     Some_primary<- c ("elementary_1", "elementary_2", "elementary_3", "elementary_4","kindergarten")
     Primary_and_above<- c("elementary_5","middle_6", "middle_7", "middle_8", "middle_9", "high_10", "high_11", "tertiary")
-    no_formal_education <- c("noedu","madrassa")
+    no_formal_education <- c("noedu","madrassa", "dntknow_no_answer")
     
     Language <- hh_with_individual_level_data[,c("language.chittagonian","language.burmese" ,"language.english","language.rohingya","language.bangla","language.arabic","language.other")]
     
@@ -268,7 +268,7 @@ hh_to_hh <- hh_with_individual_level_data %>%
     
     Some_primary<- c ("1", "2", "3", "4")
     Primary_and_above<- c("5","6", "7", "8", "9", "10", "11", "12", "above_12_tertiary_edu")
-    no_formal_education <- c("none","madrasah_only")
+    no_formal_education <- c("none","madrasah_only", "dntknow_prefer")
     
     safety_issues_barriers_key_facilities_included_education <- hh_with_individual_level_data[,c("education_barrier.school_unsafe", 
                                                                             "education_barrier.way_unsafe")]

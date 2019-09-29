@@ -178,7 +178,7 @@ recode_PROTECTION_severity_bgd2019<- function(hh_data,individual_data, populatio
     
     int.sev_score.protection.sub.coping = if_else(int.protection.sub.coping.hazardous_work==5,5,
                                                   if_else(int.protection.sub.coping.hazardous_work==4,4,
-                                                          if_else(int.protection.sub.coping.hazardous_work|int.protection.sub.coping.child_firewood==3,3,
+                                                          if_else(int.protection.sub.coping.child_firewood|int.protection.sub.coping.hazardous_work==3,3,
                                                                   if_else(int.protection.sub.coping.hazardous_work==2,2,
                                                                           if_else (int.protection.sub.coping.child_firewood==FALSE &  int.protection.sub.coping.hazardous_work==1,1,99))))),
     
