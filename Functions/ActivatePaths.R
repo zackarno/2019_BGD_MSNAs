@@ -159,5 +159,5 @@ if(user=="zack"){
     survey_path<-"Inputs/Refugee/04_tool/Refugee_MSNA2019_tool_survey.csv"
     choices_path<-"Inputs/Refugee/04_tool/Refugee_MSNA2019_tool_choices.csv"}
  
-  long_lat<-c("X_gps_reading_longitude","X_gps_reading_latitude")}
-wash_severity_combination_path<-"Inputs/WASH_Severity_Combo_Table.csv"
+  long_lat<-c("X_gps_reading_longitude","X_gps_reading_latitude")
+wash_severity_combination_path<-"Inputs/WASH_Severity_Combo_Table.csv"}
