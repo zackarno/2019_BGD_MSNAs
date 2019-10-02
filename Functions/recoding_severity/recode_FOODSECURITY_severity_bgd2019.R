@@ -36,7 +36,7 @@ recode_FOODSECURITY_severity_bgd2019<- function(hh_data,individual_data, populat
       unsustainable_food_source_rowsum= rowSums(.[unsustainable_food_sources], na.rm=TRUE),
       FCS_HDDS_both_acceptable= int.FS.fcs_classified== "acceptable" &int.FS.HDDS_classified=="acceptable",
       
-      # sev_score.FS.total=if_else(FCS_HDDS_both_acceptable & unsustainable_food_source_rowsum==0,1,
+      # sev_score.FS.total=if_else(FCS_HDDS_both_acceptable & unsustainable_food_sou\rce_rowsum==0,1,
       #                            if_else(FCS_HDDS_both_acceptable & unsustainable_food_source_rowsum>0,2,
       #                                    if_else(int.FS.HDDS_classified=="borderline"|int.FS.fcs_classified=="borderline",3,
       #                                            if_else(int.FS.HDDS_classified=="poor"|int.FS.fcs_classified=="poor",4,

@@ -140,66 +140,51 @@ HH_srv$variables[,c("ed_fs", "fs_snfi")]<-lapply(HH_srv$variables[,c("ed_fs", "f
 
 asdf<-butteR::mean_proportion_table(design = HH_srv,list_of_variables = c("ed_fs", "fs_snfi"),aggregation_level = NULL,round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = HH_kobo_questionnaire)
 
-asdf
 
 
-HH_srv$allprob
+# msni radar plot test ----------------------------------------------------
+weighting_function <- hypegrammaR::map_to_weighting(sampling.frame = pop,
+                                                    data = HH_severity,
+                                                    sampling.frame.population.column =sf_strata,
+                                                    sampling.frame.stratum.column = sf_pop,
+                                                    data.stratum.column = strata)
 
-expanded <- Setviz::expand_to_set_intersections(HH_data, greater_3_cols)              
-asdf                              
-expanded_dfz <- Setviz::add_set_intersection_to_df(HH_data, greater_3_cols, 
-                                          exclude_unique = T) 
-expanded_dfz$data
-                                          
-case_load_percentz <- Setviz::svymean_intersected_sets(expanded_dfz$data, 
-                                              expanded_dfz$newvarnames, weight_variable=weights)
+HH_srv$variables %>% select(intersect(starts_with("sev_score"), ends_with(".total"))) %>% colnames() %>% dput()
+sectoral_totals<-c("sev_score.wash.total", "sev_score.snfi.total", 
+  "sev_score.health.total", "sev_score.education.total", "sev_score.protection.total", 
+  "sev_score.FS.total")
 
+HH_srv$variables[,sectoral_totals]<-lapply(HH_srv$variables[,sectoral_totals],
+                                           function(x) as.numeric(as.character(x)))
 
-as.vector(expanded_dfz$newvarnames)
-?Setviz::plot_set_percentages
-
-
-windows()
-upset(fromList(listInput), order.by = "freq")
-
-upset(fromExpression(expressionInput), order.by = "freq")
-?upset
-upset(movies, nsets = 6, number.angles = 30, point.size = 3.5, line.size = 2, 
-      mainbar.y.label = "Genre Intersections", sets.x.label = "Movies Per Genre", 
-      text.scale = c(1.3, 1.3, 1, 1, 2, 0.75))
-attach(movies)
-
-# SetViz::add_set_intersection_to_df(data, varnames, exclude_unique = T)
-
-# number_cols<-HH_srv$variables %>% select(starts_with("number_")) %>% colnames()
-# number_cols<-number_cols[2:length(number_cols)]
-# HH_srv$variables[,number_cols]<-lapply(HH_srv$variables[,number_cols],as.numeric)
-# number_of_severity_percents<-butteR::mean_proportion_table(design = HH_srv,list_of_variables = number_cols,aggregation_level = NULL,round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = HH_kobo_questionnaire)
-# number_of_severity_percents
-# upset(t(HH_srv$variables[,number_cols]), nsets=6)
-# 
-# nums_binary<-sapply(HH_srv$variables[,number_cols], function(x) ifelse(x>0,1,0))
-# upset(nums_binary, nsets=6)
-
+HH_srv$variables$group=1
+# debugonce(msni19::radar_graph)
+radar_plot<-msni19::radar_graph(HH_srv$variables, 
+                    lsg = c("sev_score.education.total", 
+                            "sev_score.snfi.total", 
+                            "sev_score.FS.total", 
+                            "sev_score.health.total", 
+                            "sev_score.protection.total",
+                            "sev_score.wash.total"),
+                    lsg_labels = c("Education in\nEmergency",
+                                   "Emergency\nShelter\nand NFI",
+                                   "Food Security and\nAgriculture",
+                                   "Health",
+                                   "Protection",
+                                   "WASH"),
+                    group = "Upazila",
+                    # group_labels = c("Everyone"),
+                    weighting_function = weighting,
+                    print_plot = F,
+                    plot_name = "radar",
+                    path = "graphs")
 
 
-
-upset(movies, nsets = 6, number.angles = 30, point.size = 3.5, line.size = 2, 
-      mainbar.y.label = "Genre Intersections", sets.x.label = "Movies Per Genre", 
-      text.scale = c(1.3, 1.3, 1, 1, 2, 0.75))
-
-
-
-# msna notes --------------------------------------------------------------
-
-
-#`
-# Protection think the data does not reflect the reality on the ground
-# Wants bilateral- does not reflect the context
-# 
-#
-#
-#
-#
-#
-#
+radar_plot  
+HH_srv$variables$camp_name %>% class()
+HH_srv$variables$Upazila %>% class()
+HH_srv$variables$Upazila
+??msni19::radar_plot
+?radar_plot
+HH_srv$variables$camp_name
+radar_plot

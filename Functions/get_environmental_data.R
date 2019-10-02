@@ -111,4 +111,54 @@ write.csv(clean_data_with_environmentl,"Inputs/Refugee/04_data_analysis/cleaned_
 
 # write.csv(clean_data_with_distance,"Inputs/Host_Community/03_data_analysis/cleaned_datasets/20190909_HH_HostCommunity_Cleaned_20190915_with_dist.csv")
 
+# landform analysis -------------------------------------------------------
 
+dem_path<-"../../../01_GIS_BASE_Data/02_landscape/02_natural_features/01_elevation/02_UAV/02_manipulated_UAV_dem/01_drone_dem/IOM_NPM_Kutapalong_DEM_1m_January_46N.tif"
+library(raster); library(sp)
+dem<- raster(dem_path )
+plot(dem)
+# terrain_output<- terraing(dem, opt= c( "slope", "aspect"))
+
+tpiw <- function(x, w=5) {
+  m <- matrix(1/(w^2-1), nc=w, nr=w)
+  m[ceiling(0.5 * length(m))] <- 0
+  f <- focal(x, m)
+  x - f
+}
+start_time<- Sys.time()
+tpi5 <- tpiw(dem, w=33)
+end_time<- Sys.time()
+end_time-start_time
+
+tpi5n <- setMinMax(tpi5)
+col <- rainbow(20)
+# plot(tpi5n, col=col, main="Topographic Position Index in Kutapalong")
+library(colorspace)
+library(rasterVis)
+# myTheme <- rasterTheme(region=sequential_hcl(10, power=2.2))
+# levelplot(dem, par.settings = myTheme, contour = TRUE)
+quantile(tpi5[],na.rm=T)
+hist(tpi5[])
+SD <- sd(tpi5[],na.rm=T)
+landform <- reclassify(tpi5, matrix(c(-Inf, -SD, 1,
+                                      -SD, -SD/2, 2,
+                                      -SD/2, 0, 3,
+                                      0, SD/2, 4,
+                                      SD/2, SD, 5,
+                                      SD, Inf, 6),
+                                    ncol = 3, byrow = T),
+                       right = T)
+# Turn it into categorical raster
+landform <- as.factor(landform) 
+rat <- levels(landform)[[1]]
+rat[["landform"]] <- c('Valley', 'Lower Slope', 
+                       'Flat Area','Middle Slope', 
+                       'Upper Slope', 'Ridge')
+levels(landform) <- rat 
+
+rev(brewer.pal(6,'RdYlBu'))
+# levelplot(landform, col.regions = rev(brewer.pal(6,'RdYlBu')),
+          # labels = rat$landcover,
+          # main = "Landform Classification",
+          # colorkey=list(labels=list(at=1:6, labels=rat[["landform"]])))
+# writeRaster(x = landform, filename = "../../../01_GIS_BASE_Data/02_landscape/02_natural_features/landform_janDEM_tpi33.tif")

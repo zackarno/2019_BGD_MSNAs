@@ -67,7 +67,8 @@ dap_break_downs$dap_subsets_indiv <-dap %>%
   filter(level=="individual") %>% 
   group_by(subset)
 dap_break_downs$dap_dissagregations_idiv<-dap %>% 
-  filter(!is.na(disaggregation)) %>% 
+  fi
+lter(!is.na(disaggregation)) %>% 
   filter(dataset %in% c(dap_population_name, "both")) %>%
   filter(level=="individual")
 dap_break_downs$dap_composite_hh<-dap %>% 

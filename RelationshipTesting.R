@@ -1,11 +1,17 @@
 #relationship testing
 
 
+# Choose files ------------------------------------------------------------
+
 rm(list=ls())
 user<-"zack"
-population<-c("Host","Refugee")[1]
+population<-c("Host","Refugee")[2]
 data_process<-c("checking", "cleaning", "analysis")[3]
 analysis_phase<-c("basic","relationship_testing")[2]
+
+
+# Setup -------------------------------------------------------------------
+
 
 library(dplyr)
 # library(GISutils)
@@ -22,6 +28,10 @@ library(anytime)
 library(srvyr)
 library(forcats)
 library(tmap)
+library(gapminder)
+library(plotly)
+library(ggplot2)
+library(effects)
 tmap_mode("view")
 
 source("Functions/colours.R")
@@ -41,7 +51,7 @@ source( "Functions/recoding_severity/recode_FOODSECURITY_severity_bgd2019.R")
 source("Functions/recoding_severity/calculate_INTERSECTORAL_severity_bgd2019.R")
 
 #LOAD DATA
-#############
+
 HH_kobo_questions<-read.csv(survey_path,stringsAsFactors = FALSE)
 HH_kobo_choices<-read.csv(choices_path, stringsAsFactors = FALSE)
 wash_combo_table<-read.csv(wash_severity_combination_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
@@ -52,19 +62,27 @@ wash_errors<- read.csv(wash_error_path,na.strings = c("", " "))
 incidents_per_camp<-read.csv("Inputs/DAPs/Severity Analysis_Protection_Reported Incidents per camp_REACH.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
 
 
-# host<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA)
-# host_indiv<-read.csv(Indiv_path, strcingsAsFactors = FALSE, na.strings=c("", " ", NA))
-# ref<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
-# ref_indiv<-read.csv(Indiv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+
+if (population=="Refugee"){
+  HH_with_env<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
+  analysis_phase<-c("basic","relationship_testing")[1]
+  source("Functions/ActivatePaths.R")
+  HH_clean_final<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
+  HH<-HH_clean_final %>% left_join(HH_with_env%>% select("X_uuid","euc_dist_to_camp_m", "dem_30m", "pop_dens_sqkm_per_grid_50_m", 
+                                                         "pop_dens_sqkm_per_grid_100_m", "pop_dens_sqkm_per_grid_200_m", 
+                                                         "shelters_per_grid_50_m", "shelters_per_grid_100_m", "shelters_per_grid_200_m"
+  ), by= "X_uuid")
+}
+
+if (population=="Host"){
+  HH<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
 
 
-HH<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
 Indiv<-read.csv(Indiv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
 HH_kobo_questionnaire<-koboquest::load_questionnaire(HH,questions = HH_kobo_questions,choices = HH_kobo_choices, choices.label.column.to.use = "label..english")
 pop<- read.csv(pop_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
-################
-#FILTER TO ONLY YES CONSENT AND MAKE COMPOSTIES
-################
+
+#only yes consent
 HH_yes_consent<- HH %>% filter(informed_consent=="yes")
 indiv_yes_consent<-Indiv %>% filter(X_submission__uuid %in% HH_yes_consent$X_uuid)
 # debugonce(make_composite_indicators_bgd_msna_2019)
@@ -78,20 +96,22 @@ HH_yes_consent[rows_to_fix,enough_water_cols_to_fix] <-sapply(HH_yes_consent[row
 composite_indicators<-make_composite_indicators_bgd_msna_2019(hh_data = HH_yes_consent,  individual_data = indiv_yes_consent,population = population)
 
 HH_with_composite<-HH_yes_consent %>% left_join(composite_indicators$household_composites,by="X_uuid")
-Indiv_with_composite<-indiv_yes_consent %>% left_join(composite_indicators$individual_composites, by = "X_index")
+
+Indiv_with_composite<-indiv_yes_consent %>% left_join(composite_indicators$individual_composites,by="X_index")
 HH_with_composite<-butteR::remove_concat_select_multiple(HH_with_composite,questionnaire = HH_kobo_questionnaire)
 
 # debugonce(recode_HEALTH_severity_bgd2019)
 
 HH_severity<-HH_with_composite
 
-HH_severity<- recode_COPING_severity_bgd2019(HH_severity, individual_data = indiv_yes_consent, population=population)
-HH_severity<- recode_WASH_severity_bgd2019(HH_severity, individual_data = indiv_yes_consent, population=population, wash_combo_table = wash_combo_table)
-HH_severity<-recode_SNFI_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
-HH_severity<-recode_HEALTH_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
-HH_severity<-recode_EDUCATION_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
-HH_severity<-recode_PROTECTION_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
-HH_severity<-recode_FOODSECURITY_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
+HH_severity<- recode_COPING_severity_bgd2019(HH_severity, individual_data = Indiv_with_composite, population=population)
+# debugonce(recode_WASH_severity_bgd2019)
+HH_severity<- recode_WASH_severity_bgd2019(HH_severity, individual_data = Indiv_with_composite, population=population, wash_combo_table = wash_combo_table)
+HH_severity<-recode_SNFI_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
+HH_severity<-recode_HEALTH_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
+HH_severity<-recode_EDUCATION_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
+HH_severity<-recode_PROTECTION_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
+HH_severity<-recode_FOODSECURITY_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
 
 all_sectoral_severity_scores<-HH_severity %>% select(intersect(starts_with("sev_score"), ends_with(".total"))) %>%colnames()
 
@@ -99,6 +119,7 @@ HH_severity<-calculate_INTERSECTORAL_severity_bgd_msna2019(HH_severity,sectoral_
 
 
 
+# weighting ---------------------------------------------------------------
 
 
 
@@ -126,6 +147,8 @@ if(population=="Refugee"){
 
 
 
+pop$camp_id %in% HH_severity$camp_name
+which(HH_severity$camp_name %in% pop$camp_id ==FALSE)
 
 weighting<-map_to_weighting(sampling.frame = pop, 
                             data.stratum.column = strata,
@@ -151,16 +174,159 @@ ind_svy_ob<-survey::svydesign(ids = ~ 1,
 
 
 
+# Distance to camp --------------------------------------------------------
+
+HH_srvy_ob<-as_survey(HH_svy_ob)
+HH_srvy_ob$variables$euc_dist_to_camp_km=HH_srvy_ob$variables$euc_dist_to_camp_m/1000
+
+
+#FIREWOOD VS DISTANCE
+firewood_model<-svyglm(formula = cooking_fuel.collected_firewood~ euc_dist_to_camp_km,
+           HH_srvy_ob)
+sjPlot::tab_model(firewood_model, auto.label = FALSE,title = "Table 1. Firewood vs Distance")# proxmity to camp
+plot(allEffects(firewood_model))
+
+#TENSIONS BETWEEN COMMUNITY AND ROHINGYA
+HH_srvy_ob$variables$tension<-HH_srvy_ob$variables$tension %>% as.factor()
+HH_srvy_ob$variables$tension_binary<-ifelse(HH_srvy_ob$variables$tension=="yes",1,0)
+question_lable<-HH_kobo_questionnaire$question_get_question_label("tension")
+question_label<-HH_kobo_questionnaire$question_get_question_label("tension")
+tension_between_rohingya_host_model<-svyglm(formula = tension_binary~ euc_dist_to_camp_km,HH_srvy_ob)
+plot(allEffects(tension_between_rohingya_host_model), main=question_label)
+sjPlot::tab_model(tension_between_rohingya_host_model,
+                  auto.label = FALSE,
+                  title = paste0("Table 2. ",
+                                 question_label))# 
+
+#distance and humanitarian aid
+question_label<-HH_kobo_questionnaire$question_get_question_label("humanitarian_aid")
+HH_srvy_ob$variables$humanitarian_aid_yes_binary<-if_else(HH_srvy_ob$variables$humanitarian_aid=="yes",1,0)
+
+humanitarian_aid_distance_model<-svyglm(formula = humanitarian_aid_yes_binary~ euc_dist_to_camp_km,HH_srvy_ob)
+plot(allEffects(humanitarian_aid_distance_model), main=question_label)
+sjPlot::tab_model(humanitarian_aid_distance_model,
+                  auto.label = FALSE,
+                  title = paste0("Table 3. ",
+                                 question_label))
+plot(allEffects(humanitarian_aid_distance_model), main=question_label)
+
+#WASH AGAINST DISTANCE
+question_label<- "Enough Water For All WASH Needs"
+HH_srvy_ob$variables$enough_water_all_needs<-if_else(HH_srvy_ob$variables$I.WASH.enough_water_all_needs.HH=="yes",1,0)
+
+wash_all_water_needs_distance<-svyglm(formula = enough_water_all_needs~ euc_dist_to_camp_km,HH_srvy_ob)
+wash_all_water_needs_distance_union<-svyglm(formula = enough_water_all_needs~ euc_dist_to_camp_km+union_name,HH_srvy_ob)
+
+# HH_srvy_ob$variables$union_name
+plot(allEffects(wash_all_water_needs_distance), main= question_label, xlab="Distance to camp (km)")
+
+
+sjPlot::tab_model(wash_all_water_needs_distance, auto.label = FALSE,title = paste0 ("Table 4. ", question_label))
+sjPlot::tab_model(wash_all_water_needs_distance_union, auto.label = FALSE,title = paste0 ("Table 4. ", question_label))
+
+#dry season- surface water use
+HH_kobo_questionnaire$question_get_question_label("surface_water_access")
+
+question_label<- "Use of Surface Water in Dry Season"
+HH_srvy_ob$variables$used_surface_water_in_dry_season<-if_else(HH_svy_ob$variables$surface_water_access %in% c("dont_know", "never"),0,1)
+surface_water_use_distance_model<-svyglm(formula = used_surface_water_in_dry_season~ euc_dist_to_camp_km,HH_srvy_ob)
+
+plot(allEffects(surface_water_use_distance_model), main= question_label)
+sjPlot::tab_model(surface_water_use_distance_model, auto.label = FALSE,title = "Table 1. dist camp")# proxmity to camp
+
+
+#DISTANCE AGAINST SEVERITY?
+intersectoral_severity_distance_model<-svyglm(formula = intersectoral_severity.total~ euc_dist_to_camp_km,HH_srvy_ob)
+summary(intersectoral_severity_distance_model)
+plot(allEffects(intersectoral_severity_distance_model), main= question_label)
+
+#loop through each of the sectors
+
+sectoral_totals<-c("sev_score.wash.total", "sev_score.snfi.total", 
+                   "sev_score.health.total", "sev_score.education.total", "sev_score.protection.total",
+                   "sev_score.FS.total")
+
+sectoral_distance_logistic_graphs<-list()
+pval<-list()
+
+for ( i in 1: length(sectoral_totals)){
+  sector_of_interest<-sectoral_totals[i]
+  model_of_interest<-svyglm(formula = formula(paste0(sector_of_interest, "~euc_dist_to_camp_km + Upazila")),HH_srvy_ob)
+  pval_df=data.frame(coef(summary(model_of_interest)))
+  pval[[sector_of_interest]]= round(pval_df[nrow(pval_df), ncol(pval_df)],3)
+  sectoral_distance_logistic_graphs[[sector_of_interest]]<-allEffects(model_of_interest)
+}
+
+
+plot(sectoral_distance_logistic_graphs$sev_score.wash.total, main=paste0("WASH Sectoral Score (p =  ",pval$sev_score.wash.total,")"))
+plot(sectoral_distance_logistic_graphs$sev_score.snfi.total,main=paste0("SNFI Sectoral Score (p =  ",pval$sev_score.snfi.total,")"))
+
+plot(sectoral_distance_logistic_graphs$sev_score.health.total, main=paste0("Health Sectoral Score (p =  ",pval$sev_score.health.total,")"))
+plot(sectoral_distance_logistic_graphs$sev_score.education.total,main=paste0("Education Sectoral Score (p =  ",pval$sev_score.education.total,")"))
+plot(sectoral_distance_logistic_graphs$sev_score.protection.total,main=paste0("Protection Sectoral Score (p =  ",pval$sev_score.protection.total,")"))
+plot(sectoral_distance_logistic_graphs$sev_score.FS.total,main=paste0("Food Security Sectoral Score (p =  ",pval$sev_score.FS.total,")"))
+
+asdf<-coef(summary(model_of_interest  )) %>% data.frame()
+
+asdf$Pr...t..
+HH_srvy_ob$variables$sev_score
+
+
+
+colnames(HH_srvy_ob$variables)
+
+HH_svy_ob$variables$I.FLS.at_leastoneworking_binary = if_else(HH_svy_ob$variables$I.FSL.livelihoods_atleast_one.INDVHH=="yes",1,0,0)
+
+HH_svy_ob$variables$I.HH_CHAR.dependency_ratio.INDVHH
+
+
+
+m7<-svyglm(formula = I.FLS.at_leastoneworking_binary~ I.HH_CHAR.dependency_ratio.INDVHH,HH_svy_ob)
+
+m7<-svyglm(formula = I.FLS.at_leastoneworking_binary~ I.HH_CHAR.dependency_ratio.INDVHH,HH_svy_ob, na.action=TRUE)
+?svyglm
+
+# dist to camp by camp ----------------------------------------------------
+
+p8 <- ggplot(HH_data_factorized, aes(x = euc_dist_to_camp_m, fill = factor(!!sym(strata)))) +
+  geom_density(position="identity", alpha=0.6) +
+  # scale_x_continuous(name = "Mean ozone in\nparts per billion",
+  # breaks = seq(0, 200, 25),
+  # limits=c(0, 200)) +
+  scale_y_continuous(name = "Density") +
+  
+  ggtitle("Dist to Camp") +
+  theme_bw() +
+  theme(plot.title = element_text(size = 14, family = "Tahoma", face = "bold"),
+        text = element_text(size = 12, family = "Tahoma")) #+
+# scale_fill_brewer(palette="Accent")
+
+p8
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 independent_variables<- c("I.HH_CHAR.dependency_ratio_classification.HH", "I.HH_CHAR.size.HH", "I.HH_CHAR.gender_hoh.HH", "I.HH_CHAR.education_level.HH", "I.HEALTH.indhelp_atleast.INDVHH")
 
 
 dependent_variables<-c("I.FSL.livelihoods_atleast_one.INDVHH", "I.coping.new_debt") %>% trimws()
-svyby(~I.FSL.livelihoods_atleast_one.INDVHH, ~I.HH_CHAR.dependency_ratio_classification.HH, svymean, HH_svy_ob )
+# svyby(~I.FSL.livelihoods_atleast_one.INDVHH, ~I.HH_CHAR.dependency_ratio_classification.HH, svymean, HH_svy_ob )
 
-)
 
-HH_srvy_ob$variable$I.FSL.livelihoods_atleast_one.INDVHH
+
 HH_srvy_ob<-srvyr::as_survey(HH_svy_ob)
+HH_srvy_ob$variable$I.FSL.livelihoods_atleast_one.INDVHH
+
 HH_srvy_ob$variables$I.FSL.livelihoods_atleast_one.INDVHH %>% class(
   
   
@@ -254,89 +420,4 @@ for ( i in 1:length(dependent_variables)){
 
 
 
-
-m1<-svyglm(formula = cooking_fuel.collected_firewood~ euc_dist_to_camp_m,
-                     HH_svy_ob)
-sjPlot::tab_model(m1, auto.label = FALSE,title = "Table 1. dist camp")# proxmity to camp
-
-
-HH_svy_ob$variables$tension<-HH_svy_ob$variables$tension %>% as.factor()
-HH_svy_ob$variables$tension_binary<-ifelse(HH_svy_ob$variables$tension=="yes",1,0)
-m2<-svyglm(formula = tension_binary~ euc_dist_to_camp_m,HH_svy_ob)
-
-plot(allEffects(m2))
-sjPlot::tab_model(m2, auto.label = FALSE,title = "Table 1. dist camp")# proxmity to camp
-
-
-HH_svy_ob$variables$humanitarian_aid
-HH_svy_ob$variables$humanitarian_aid_yes_binary<-if_else(HH_svy_ob$variables$humanitarian_aid=="yes",1,0)
-
-m3<-svyglm(formula = humanitarian_aid_yes_binary~ euc_dist_to_camp_m,HH_svy_ob)
-plot(allEffects(m3))
-sjPlot::tab_model(m3, auto.label = FALSE,title = "Table 1. dist camp")# proxmity to camp
-
-
-plot(HH_svy_ob$variables$I.FCS_score,HH_svy_ob$variables$euc_dist_to_camp_m)
-
-
-m4<-svyglm(formula = humanitarian_aid_yes_binary~ euc_dist_to_camp_m,HH_svy_ob)
-plot(allEffects(m3))
-sjPlot::tab_model(m3, auto.label = FALSE,title = "Table 1. dist camp")# proxmity to camp
-
-HH_svy_ob$variables$distance_km<-HH_svy_ob$variables$euc_dist_to_camp_m/1000
-HH_svy_ob$variables$I.WASH.enough_water_all_needs.HH<-if_else(HH_svy_ob$variables$I.WASH.enough_water_all_needs.HH=="yes",1,0)
-HH_svy_ob$variables$I.WASH.enough_water_all_needs.HH
-
-m5<-svyglm(formula = I.WASH.enough_water_all_needs.HH~ euc_dist_to_camp_m,HH_svy_ob)
-m5
-
-windows();plot(allEffects(m5))
-plot(allEffects(m5))
-sjPlot::tab_model(m5, auto.label = FALSE,title = "Table 1. dist camp")# proxmity to camp
-
-
-HH_svy_ob$variables$surface_Water_dry<-if_else(HH_svy_ob$variables$surface_water_access %in% c("dont_know", "never"),0,1)
-
-m6<-svyglm(formula = surface_Water_dry~ euc_dist_to_camp_m,HH_svy_ob)
-library(effects)
-plot(allEffects(m6))
-sjPlot::tab_model(m6, auto.label = FALSE,title = "Table 1. dist camp")# proxmity to camp
-m6$coefficients[2] %>% exp
-
-
-m7<-svyglm(formula = surface_Water_dry~ distance_km,HH_svy_ob)
-
-exp( coef(m6) , confint(m6))
-exp(coefficients(m6), confint(m6))
-
-sjPlot::tab_model(m7, auto.label = FALSE,title = "Table 1. dist camp")# proxmity to camp
-m7$coefficients[2] %>% exp
-
-HH_svy_ob$variables$I.FLS.at_leastoneworking_binary = if_else(HH_svy_ob$variables$I.FSL.livelihoods_atleast_one.INDVHH=="yes",1,0,0)
-
-HH_svy_ob$variables$I.HH_CHAR.dependency_ratio.INDVHH
-
-
-
-m7<-svyglm(formula = I.FLS.at_leastoneworking_binary~ I.HH_CHAR.dependency_ratio.INDVHH,HH_svy_ob)
-
-m7<-svyglm(formula = I.FLS.at_leastoneworking_binary~ I.HH_CHAR.dependency_ratio.INDVHH,HH_svy_ob, na.action=TRUE)
-?svyglm
-
-# dist to camp by camp ----------------------------------------------------
-
-p8 <- ggplot(HH_data_factorized, aes(x = euc_dist_to_camp_m, fill = factor(!!sym(strata)))) +
-  geom_density(position="identity", alpha=0.6) +
-  # scale_x_continuous(name = "Mean ozone in\nparts per billion",
-                     # breaks = seq(0, 200, 25),
-                     # limits=c(0, 200)) +
-  scale_y_continuous(name = "Density") +
-
-  ggtitle("Dist to Camp") +
-  theme_bw() +
-  theme(plot.title = element_text(size = 14, family = "Tahoma", face = "bold"),
-        text = element_text(size = 12, family = "Tahoma")) #+
-  # scale_fill_brewer(palette="Accent")
-
-p8
 

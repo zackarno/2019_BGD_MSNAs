@@ -157,6 +157,30 @@ coarse_dat$shdi_3 <- winmove_agg(coarse_dat = coarse_dat,
                                  agg_fun = mean,
                                  is_grid = FALSE,
                                  lc_class = 1:4)
+
+library(ggplot2)
+
+# coarse_dat <- st_read("your_file.shp")
+coarse_dat <- st_read(system.file("shape/poly_sf.shp", package="grainchanger"))
+#> Reading layer `poly_sf' from data source `C:\Users\lg1u16\AppData\Local\Temp\RtmpYz604t\Rinst3628661a2f2f\grainchanger\shape\poly_sf.shp' using driver `ESRI Shapefile'
+#> Simple feature collection with 39 features and 1 field
+#> geometry type:  POLYGON
+#> dimension:      XY
+#> bbox:           xmin: -6.5 ymin: -7.505553 xmax: 71.5 ymax: 75.05553
+#> epsg (SRID):    NA
+#> proj4string:    NA
+
+coarse_dat$var_range <- nomove_agg(coarse_dat = coarse_dat,
+                                   fine_dat = hh_sf,
+                                   agg_fun = var_range,
+                                   is_grid = FALSE)
+
+
+win_smooth <- winmove(fine_dat = hh_sf, 
+                      d = 5,
+                      type = "rectangle",
+                      win_fun = var)
+
 HH_severity$c
 coarse_dat <- st_read(system.file("shape/poly_sf.shp", package="grainchanger"))
 

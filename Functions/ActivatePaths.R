@@ -17,6 +17,14 @@ if(user=="zack"){
       if (analysis_phase=="relationship_testing"){
         HH_path<- "Inputs/Host_Community/03_data_analysis/cleaned_datasets/20190909_HH_HostCommunity_Cleaned_20190915_with_dist.csv"
         wash_error_path<-"Inputs/DAPs/MSNA_Host_Water_Quant_delete.csv"
+        Indiv_path<-"Inputs/Host_Community/03_data_analysis/cleaned_datasets/20190909_Indiv_HostCommunity_Cleaned_20190915.csv"
+        strata<- "union_name" 
+        sf_pop<-'HH_pop'
+        strata_boundary_layer<-"BGD_Teknaf_Ukhia_Unions"
+        dap_population_name<-"hc_only" 
+        sf_strata<- "Union"
+        wash_error_path<-"Inputs/DAPs/MSNA_Host_Water_Quant_delete.csv"
+        spatial_strata= "adm4_en"
       }else{
       HH_path<- "Inputs/Host_Community/03_data_analysis/cleaned_datasets/20190909_HH_HostCommunity_Cleaned_20190915.csv"
       Indiv_path<-"Inputs/Host_Community/03_data_analysis/cleaned_datasets/20190909_Indiv_HostCommunity_Cleaned_20190915.csv"
@@ -89,10 +97,20 @@ if(user=="zack"){
     }
     if (data_process=="analysis"){
       if (analysis_phase=="relationship_testing"){
-        HH_path<- "Inputs/Host_Community/03_data_analysis/cleaned_datasets/20190909_HH_HostCommunity_Cleaned_20190915_with_dist.csv"
+        HH_path<- "Inputs/Refugee/04_data_analysis/cleaned_data/20190915_HH_Refugee_Cleaned_20190917_with_environmental.csv"
+        Indiv_path<-"Inputs/Refugee/04_data_analysis/cleaned_data/20190915_Indiv_Refugee_Cleaned_20190917.csv"
         wash_error_path<-"Inputs/DAPs/MSNA_Ref_Water_Quant_delete.csv"
+        strata<- "camp_name" 
+        sf_pop<-'Total.Families'
+        sf_strata<-"camp_id"
+        strata_boundary_layer<-"190310_Outline_Rohingya_Refugee_Camp_A1"
+        dap_population_name<-"ref_only" 
+        wash_error_path<-"Inputs/DAPs/MSNA_Ref_Water_Quant_delete.csv"
+        spatial_strata= "New_Camp_N"
+        # "20190915_HH_Refugee_Cleaned_20190917_with_environmental.csv"
         }
-      HH_path<- "Inputs/Refugee/04_data_analysis/cleaned_data/20190915_HH_Refugee_Cleaned_20190917.csv"
+      if (analysis_phase=="basic"){
+       HH_path<- "Inputs/Refugee/04_data_analysis/cleaned_data/20190915_HH_Refugee_Cleaned_20190917.csv"
       Indiv_path<-"Inputs/Refugee/04_data_analysis/cleaned_data/20190915_Indiv_Refugee_Cleaned_20190917.csv"
       strata<- "camp_name" 
       sf_pop<-'Total.Families'
@@ -101,7 +119,7 @@ if(user=="zack"){
       dap_population_name<-"ref_only" 
       wash_error_path<-"Inputs/DAPs/MSNA_Ref_Water_Quant_delete.csv"
       spatial_strata= "New_Camp_N"
-      
+      }
     }
     if (data_process== "checking") {
       HH_path<- "Inputs/Refugee/02_data_collection/HH_Refugee.csv"

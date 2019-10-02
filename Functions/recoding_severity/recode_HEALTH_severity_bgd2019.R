@@ -125,12 +125,13 @@ number.health.names<-length(int.health.names.to_combine)
       sev.health.s5= if_else(int.health.sick_no_treatment_safety_atleast==1 |
                                (int.health.adult_requiring_assistance_all==1&int.health.debt==1),1,0) ,
       
-      int.sums.health= if_else(rowSums(.[c("int.health.debt","int.health.sick_no_treatment_not_safety_atleast","int.health.smoking_everyday_all")])>1,1,0),
+      int.sums.health= rowSums(.[c("int.health.debt","int.health.sick_no_treatment_not_safety_atleast","int.health.smoking_everyday_all")], na.rm=TRUE),
+      # int.sums.health_over1= if_else(rowSums(.[c("int.health.debt","int.health.sick_no_treatment_not_safety_atleast","int.health.smoking_everyday_all")])>1,1,0),
       
       sev.health.s4=if_else(int.health.adult_requiring_assistance_all==1|
-                              (int.sums.health==1)|
+                              (int.sums.health>1)|
                               number_health_access==number.health.names,1,0),
-      sev.health.s3= if_else(rowSums(.[names_for_sev3],na.rm = TRUE)>2,1,0),
+      sev.health.s3= if_else(rowSums(.[names_for_sev3],na.rm = TRUE)>2|int.sums.health==1 ,1,0),
       # sev.health.s2=if_else(rowSums(.[names_for_sev3],na.rm = TRUE)>0&
                               # rowSums(.[names_for_sev3],na.rm = TRUE)<3,1,0),
       sev.health.s2= int.health.birthed_not_clinic_atleast==0 |int.health.preg_no_anc==1| int.health.sick_gov_ngo_treatment_atleast==1,
