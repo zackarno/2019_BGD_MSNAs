@@ -1,9 +1,8 @@
-# UpSetR::intersects()
-# detach("package:dplyr", unload=TRUE)
 
 # devtools::install_github("ellieallien/Setviz")
 
-#run rmd upt 233
+
+#RUN SEVERITY RMD UP TO LINE 233 TO LOAD REQUIRED OBJECTS
 
 HH_srv$variables$weights<-weights(HH_srv)
 

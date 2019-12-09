@@ -36,7 +36,12 @@ vignettes/*.pdf
 rsconnect/
 #GIS files
 
+*.html
+/additional_scripts/*
 /GIS/*
+/scrap/*
+/Tableau/*
+/Report/*
 # data files
 
 /Inputs/GIS/* 
@@ -63,6 +68,7 @@ Inputs/Host_Community/03_data_analysis/cleaned_datasets/*
 /recoding_output_file/*
 04_Refugee_Sampling_R2_and_on.R
 #machine specific script 
+
 
 /Functions/input_location.R
 20190915_HH_Refugee_Cleaned_20190917.csv
