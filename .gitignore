@@ -41,7 +41,7 @@ rsconnect/
 /GIS/*
 /scrap/*
 /Tableau/*
-/Report/*
+
 # data files
 
 /Inputs/GIS/* 
