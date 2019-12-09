@@ -1,0 +1,1555 @@
+---
+title: "Severity Scores: BGD MSNA 2019"
+author: "REACH BGD"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+---
+
+```{r setup, include=FALSE, warning = FALSE, message=FALSE}
+  
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE,
+	out.width = "100%"
+)
+rm(list=ls())
+user<-"zack"
+population<-c("Host","Refugee")[1]
+data_process<-c("checking", "cleaning", "analysis")[3]
+analysis_phase<-c("basic","relationship_testing")[1]
+
+library(dplyr)
+# library(GISutils)
+# detach("package:butteR", unload = TRUE)
+library(nngeo)
+library(dplyr)
+library(hypegrammaR)
+library(koboquest)
+library(stringr)
+library(lubridate)
+library(rgdal)
+library(sf)
+library(anytime)
+library(srvyr)
+library(forcats)
+library(tmap)
+library(gapminder)
+library(plotly)
+library(effects)
+library(ggplot2)
+tmap_mode("view")
+
+source("Functions/colours.R")
+source("Functions/ActivatePaths.R")
+source("Functions/make_composite_indicators_bgd_msna_2019_mk.R")
+# source("Functions/make_composite_indicators_bgd_msna_2019.R")
+source("Functions/calculate_shelter_topology.R")
+source("Functions/general_utils.R")
+source("Functions/recode_to_severity_bgd_msna2019.R")
+source("Functions/recoding_severity/recode_SNFI_severity_bgd2019.R")
+source("Functions/recoding_severity/recode_HEALTH_severity_bgd2019.R")
+source("Functions/recoding_severity/recode_COPING_severity_bgd2019.R")
+source("Functions/recoding_severity/recode_EDUCATION_severity_bgd2019.R")
+source("Functions/recoding_severity/recode_WASH_severity_bgd2019.R")
+source( "Functions/recoding_severity/recode_PROTECTION_severity_bgd2019.R")
+source( "Functions/recoding_severity/recode_FOODSECURITY_severity_bgd2019.R")
+source("Functions/recoding_severity/calculate_INTERSECTORAL_severity_bgd2019.R")
+
+#LOAD DATA
+#############
+HH_kobo_questions<-read.csv(survey_path,stringsAsFactors = FALSE)
+HH_kobo_choices<-read.csv(choices_path, stringsAsFactors = FALSE)
+wash_combo_table<-read.csv(wash_severity_combination_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
+wash_errors<- read.csv(wash_error_path,na.strings = c("", " "))
+
+
+
+incidents_per_camp<-read.csv("Inputs/DAPs/Severity Analysis_Protection_Reported Incidents per camp_REACH.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
+
+
+# host<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA)
+# host_indiv<-read.csv(Indiv_path, strcingsAsFactors = FALSE, na.strings=c("", " ", NA))
+# ref<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+# ref_indiv<-read.csv(Indiv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+
+
+HH<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
+Indiv<-read.csv(Indiv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
+HH_kobo_questionnaire<-koboquest::load_questionnaire(HH,questions = HH_kobo_questions,choices = HH_kobo_choices, choices.label.column.to.use = "label..english")
+pop<- read.csv(pop_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
+################
+#FILTER TO ONLY YES CONSENT AND MAKE COMPOSTIES
+################
+HH_yes_consent<- HH %>% filter(informed_consent=="yes")
+indiv_yes_consent<-Indiv %>% filter(X_submission__uuid %in% HH_yes_consent$X_uuid)
+# debugonce(make_composite_indicators_bgd_msna_2019)
+
+
+enough_water_cols_to_fix<-HH_yes_consent %>% select(starts_with("enough_water")) %>% colnames()
+rows_to_fix<-which(HH_yes_consent$X_uuid %in% wash_errors$uuid)
+HH_yes_consent[rows_to_fix,enough_water_cols_to_fix] <-sapply(HH_yes_consent[rows_to_fix,enough_water_cols_to_fix],function(x)x<-NA) 
+
+
+composite_indicators<-make_composite_indicators_bgd_msna_2019(hh_data = HH_yes_consent,  individual_data = indiv_yes_consent,population = population)
+
+HH_with_composite<-HH_yes_consent %>% left_join(composite_indicators$household_composites,by="X_uuid")
+
+HH_with_composite<-butteR::remove_concat_select_multiple(HH_with_composite,questionnaire = HH_kobo_questionnaire)
+
+# debugonce(recode_HEALTH_severity_bgd2019)
+
+HH_severity<-HH_with_composite
+
+HH_severity<- recode_COPING_severity_bgd2019(HH_severity, individual_data = indiv_yes_consent, population=population)
+HH_severity<- recode_WASH_severity_bgd2019(HH_severity, individual_data = indiv_yes_consent, population=population, wash_combo_table = wash_combo_table)
+HH_severity<-recode_SNFI_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
+HH_severity<-recode_HEALTH_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
+HH_severity<-recode_EDUCATION_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
+HH_severity<-recode_PROTECTION_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
+HH_severity<-recode_FOODSECURITY_severity_bgd2019(hh_data= HH_severity, individual_data=indiv_yes_consent, population=population)
+
+
+# HH_severity %>% select(X_uuid, I.FCS_score, HDDS_over5,int.wash.improved_water_drinking,int.wash.unimproved_water_drinking) %>% write.csv("20191029_Host_Composite_Indicators_For_ACAPS.csv")
+# HH_severity %>% select(X_uuid, I.FCS_score, HDDS_over5,int.wash.improved_water_drinking,int.wash.unimproved_water_drinking) %>% write.csv("20191029_Refugee_Composite_Indicators_For_ACAPS.csv")
+
+# HH_severity$I.FCS_score
+# HH_severity$I.FSL.HDDS_score_raw
+# HH_severity$HDDS_over5
+# HH_severity$int.wash.improved_water_drinking
+# HH_severity$int.wash.unimproved_water_drinking
+
+all_sectoral_severity_scores<-HH_severity %>% select(intersect(starts_with("sev_score"), ends_with(".total"))) %>%colnames()
+
+HH_severity<-calculate_INTERSECTORAL_severity_bgd_msna2019(HH_severity,sectoral_scores =all_sectoral_severity_scores,coping_strategy_score = "sev_score.coping.total" )
+
+
+
+```
+
+# `r ifelse(population=="Host","Host Community", "Refugees")`
+
+
+
+```{r}
+
+# CALCULATE WEIGHTS AND MAKE SURVEY
+
+if(population=="Refugee"){
+  HH_severity<-HH_severity %>%
+    group_by(!!sym(strata)) %>%
+    filter(n()>10) %>%
+    ungroup()
+  
+  pop<-pop %>% 
+    filter(!is.na(Camp)& is.na(Block)) %>% 
+    mutate(
+      camp_id=str_replace(Camp, "Total","") %>% trimws(),
+      Total.Families=as.numeric(Total.Families)
+    ) %>% 
+    select(camp_id, Total.Families,Total.Individuals)
+  
+}else{
+  pop[[sf_strata]]<-if_else(pop[[sf_strata]] =="Teknaf Sadar" , "Teknaf",pop[[sf_strata]]) 
+} 
+
+# pop%>% write.csv("pops.csv")
+# CLEAN POPULATION DATA ---------------------------------------------------
+
+
+
+weighting<-map_to_weighting(sampling.frame = pop, 
+                            data.stratum.column = strata,
+                            data = HH_severity, 
+                            sampling.frame.population.column =sf_pop,
+                            sampling.frame.stratum.column = sf_strata)
+
+
+
+HH_svy_ob<-map_to_design(data=HH_severity, weighting_function = weighting)
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+HH_srv<-as_survey(HH_svy_ob)
+all_sub_components<- HH_svy_ob$variables %>% select(intersect(starts_with("sev_score"), contains(".sub"))) %>%colnames() 
+all_sectoral_severity_scores<-HH_svy_ob$variables %>% select(intersect(contains("sev_score"), ends_with(".total"))) %>%colnames() 
+
+all_score_totals<-HH_srv %>% select(ends_with(".total")) %>%colnames() 
+
+scores_greater_than_3<-sapply(HH_srv$variables[,all_score_totals], function(x) ifelse(x >=4,1,0)) %>% data.frame()
+
+#ADD IDENTIFYING SUFFIX TO THE END OF RECODED DISABILITY QUESTIONS
+colnames(scores_greater_than_3)<-paste0(colnames(scores_greater_than_3),".greater_3")
+
+HH_srv$variables<-data.frame(HH_srv$variables,scores_greater_than_3)  
+
+
+```
+
+```{r asdfaf}
+# for nina
+all_severity_scores<-HH_srv %>% select(intersect(contains("sev_score"), ends_with(".total")),intersectoral_severity.total) %>%colnames() 
+HH_srv_butterit<-HH_srv
+HH_srv_butterit$variables[,all_severity_scores]<-lapply(HH_srv_butterit$variables[,all_severity_scores], as.factor)
+
+
+by_strata<-butteR::mean_proportion_table(design = HH_srv_butterit,list_of_variables = all_severity_scores,aggregation_level = strata,round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = HH_kobo_questionnaire)
+
+colnames(by_strata)[1]<-"aggregation_value"
+by_strata<-by_strata %>%
+  mutate(aggregation_level= "strata") %>% select(aggregation_level, everything())
+
+overall<-butteR::mean_proportion_table(design = HH_srv_butterit,list_of_variables = all_severity_scores,aggregation_level = NULL,round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = HH_kobo_questionnaire)
+
+
+overall<-overall %>%
+  mutate(aggregation_level= "Response Level",
+         aggregation_value="Response Level") %>% select(aggregation_level,aggregation_value, everything())
+
+by_respondent_gender<-butteR::mean_proportion_table(design = HH_srv_butterit,list_of_variables =
+                                                      all_severity_scores,aggregation_level =
+                                                      "respondent_gender",round_to = 2,
+                                                    return_confidence = FALSE,na_replace = FALSE,questionnaire = 
+                                                      HH_kobo_questionnaire)
+
+colnames(by_respondent_gender)[1]<-"aggregation_value"
+by_respondent_gender<-by_respondent_gender %>%
+  mutate(aggregation_level= "Respondent_gender") %>% select(aggregation_level, everything())
+
+
+analyzed_stratas<-list(by_strata, by_respondent_gender, overall)
+
+analyzed_stratas_binded<-do.call("rbind", analyzed_stratas )
+write.csv(analyzed_stratas_binded,paste0(population, "_severities_analyzed_20191003.csv"))
+
+````
+
+
+```{r}
+# HH_srv<-as_survey(HH_svy_ob)
+all_sub_components<- HH_srv %>% select(intersect(contains("sev_score"), contains(".sub"))) %>%colnames() 
+all_sectoral_severity_scores<-HH_srv %>% select(intersect(contains("sev_score"), ends_with(".total"))) %>%colnames() 
+total_scores_greater_than_3<-HH_srv %>% select(ends_with(".greater_3")) %>% colnames()
+all_severity_totals<-HH_srv %>% select( ends_with(".total")) %>%colnames()
+
+HH_srv$variables[,all_sectoral_severity_scores]<-lapply(HH_srv$variables[,all_sectoral_severity_scores],as.factor)
+
+HH_srv$variables[,all_sectoral_severity_scores]<-lapply(HH_srv$variables[,all_sectoral_severity_scores], function(x)forcats::fct_expand(x,c(1:6) %>% as.character) %>% fct_relevel(c(1:6) %>% as.character))
+
+HH_srv$variables[,all_severity_totals]<-lapply(HH_srv$variables[,all_severity_totals], as.factor)
+HH_srv$variables[,all_severity_totals]<-lapply(HH_srv$variables[,all_severity_totals], function(x)forcats::fct_expand(x,c(1:6) %>% as.character) %>% fct_relevel(c(1:6) %>% as.character))
+
+
+severity_sector_score_graphs_strata<-list()
+for(i in 1:length(all_sectoral_severity_scores)){
+  
+  severity_sector_score_graphs_strata[[all_sectoral_severity_scores[[i]]]]<-HH_srv %>%
+    group_by(!!sym(strata),!!sym(all_sectoral_severity_scores[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+    ggplot(aes(x=as.factor(!!sym(strata)), y=mean.stat, fill=!!sym(all_sectoral_severity_scores[[i]])))+
+    geom_bar(position=position_dodge(), stat="identity", colour='black') +
+    scale_fill_brewer(palette = "YlOrRd")+ 
+    # scale_fill_manual(values=severity_colors)+
+    # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+    geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+    scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+    labs(x=strata)+
+    coord_flip()
+}
+
+
+severity_sector_score_graphs_overall<-list()
+for(i in 1:length(all_sectoral_severity_scores)){
+  
+  severity_sector_score_graphs_overall[[all_sectoral_severity_scores[[i]]]]<-HH_srv %>%
+    group_by(!!sym(all_sectoral_severity_scores[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+    ggplot(aes(x=!!sym(all_sectoral_severity_scores[[i]]), y=mean.stat, fill=!!sym(all_sectoral_severity_scores[[i]])))+
+    geom_bar(position=position_dodge(), stat="identity", colour='black') +
+    scale_fill_brewer(palette = "YlOrRd")+ 
+    # scale_fill_manual(values=severity_colors)+
+    # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+    geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+    scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+    labs(x="Overall")+
+    coord_flip()
+}
+
+
+
+#scores over 3
+###########################################3
+HH_srv$variables[,total_scores_greater_than_3]<-lapply(HH_srv$variables[,total_scores_greater_than_3],as.factor)
+HH_srv$variables[,total_scores_greater_than_3]<- lapply(HH_srv$variables[,total_scores_greater_than_3],function(x) forcats::fct_expand(x,"999"))
+
+
+severity_scores_over3_graphs_strata<-list()
+# ggplot(df, aes(x = reorder(f.name, -age), y = age))
+severity_scores_over3_tables_overall<-list()
+severity_scores_over3_graphs_strata_projected<-list()
+summary_table_projected<-list()
+for(i in 1:length(total_scores_greater_than_3)){
+  overall_mean<-HH_srv %>%
+    group_by(!!sym(total_scores_greater_than_3[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>% 
+    filter(!!sym(total_scores_greater_than_3[[i]])==1) %>% 
+    mutate(projected_populationHH_over3_mean=sum(pop[[sf_pop]])*mean.stat,
+           projected_populationHH_over3_mean_upp= sum(pop[[sf_pop]])*mean.stat_upp,
+           projected_populationHH_over3_mean_low= sum(pop[[sf_pop]])*mean.stat_low
+    )
+  
+  severity_scores_over3_tables_overall[[total_scores_greater_than_3[[i]]]]<-overall_mean
+  
+  summary_table_strata<- HH_srv %>%
+    group_by(!!sym(strata),!!sym(total_scores_greater_than_3[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+    filter(!!sym(total_scores_greater_than_3[[i]])==1) %>% 
+    left_join(pop, by=setNames(sf_strata,strata)) %>%
+    mutate(projected_populationHH_over3_mean=!!sym(sf_pop)*mean.stat,
+           projected_populationHH_over3_mean_upp= !!sym(sf_pop)*mean.stat_upp,
+           projected_populationHH_over3_mean_low= !!sym(sf_pop)*mean.stat_low
+    )
+  
+  
+  summary_table_projected[[total_scores_greater_than_3[[i]]]]<-summary_table_strata
+  
+  severity_scores_over3_graphs_strata[[total_scores_greater_than_3[[i]]]]<-summary_table_strata %>% 
+    ggplot(aes(x=reorder(as.factor(!!sym(strata)),mean.stat), y=mean.stat, fill=!!sym(total_scores_greater_than_3[[i]])),show.legend=FALSE)+
+    # ggplot(aes(x=as.factor(!!sym(strata)), y=mean.stat, fill=!!sym(total_scores_greater_than_3[[i]])),show.legend=FALSE)+
+    geom_bar(position=position_dodge(), stat="identity", colour='black') +
+    scale_fill_manual(values=severity_colors)+
+    # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+    geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+    scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+    labs(x=strata)+
+    coord_flip()+
+    ggtitle("Severity >= 4")+
+    geom_hline(data=overall_mean, aes(yintercept= mean.stat_low, linetype=2,color="red"), show.legend = FALSE)+
+    geom_hline(data=overall_mean, aes(yintercept= mean.stat, linetype=1,color="red"), show.legend = FALSE)+
+    geom_hline(data=overall_mean, aes(yintercept= mean.stat_upp, linetype=2,color="red"), show.legend = FALSE)+
+    scale_linetype_identity()+ theme(legend.title = element_blank(), legend.position = "none")
+  
+  
+  severity_scores_over3_graphs_strata_projected[[total_scores_greater_than_3[[i]]]]<-summary_table_strata %>% 
+    ggplot(aes(x=reorder(as.factor(!!sym(strata)),projected_populationHH_over3_mean), y=projected_populationHH_over3_mean, fill=!!sym(total_scores_greater_than_3[[i]])),show.legend=FALSE)+
+    geom_bar(position=position_dodge(), stat="identity", colour='black') +
+    scale_fill_manual(values=severity_colors)+
+    geom_errorbar(aes(ymin=projected_populationHH_over3_mean_low, ymax=projected_populationHH_over3_mean_upp), width=.2,position=position_dodge(.9))+
+    labs(x=strata)+
+    coord_flip()+
+    ggtitle("Severity >= 4")
+  # geom_hline(data=overall_mean, aes(yintercept= projected_populationHH_over3_mean_low, linetype=2,color="red"), show.legend = FALSE)+
+  # geom_hline(data=overall_mean, aes(yintercept= projected_populationHH_over3_mean, linetype=1,color="red"), show.legend = FALSE)+
+  # geom_hline(data=overall_mean, aes(yintercept= projected_populationHH_over3_mean_upp, linetype=2,color="red"), show.legend = FALSE)+
+  # scale_linetype_identity()+ theme(legend.title = element_blank(), legend.position = "none")
+}
+
+severity_scores_over3_tables_strata<-list()
+for(i in 1:length(total_scores_greater_than_3)){
+  
+  severity_scores_over3_tables_strata[[total_scores_greater_than_3[[i]]]]<-HH_srv %>%
+    group_by(!!sym(strata),!!sym(total_scores_greater_than_3[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci"))
+  
+}
+
+
+severity_scores_over3_tables_overall<-list()
+for(i in 1:length(total_scores_greater_than_3)){
+  
+  severity_scores_over3_tables_overall[[total_scores_greater_than_3[[i]]]]<-HH_srv %>%
+    group_by(!!sym(total_scores_greater_than_3[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>% 
+    filter(!!sym(total_scores_greater_than_3[[i]])==1) 
+  
+}
+
+
+severity_scores_over3_graphs_overall<-list()
+
+for(i in 1:length(total_scores_greater_than_3)){
+  
+  
+  severity_scores_over3_graphs_overall[[total_scores_greater_than_3[[i]]]]<-HH_srv %>%
+    group_by(!!sym(total_scores_greater_than_3[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+    filter(!!sym(total_scores_greater_than_3[[i]])==1) %>% 
+    ggplot(aes(x=!!sym(total_scores_greater_than_3[[i]]), y=mean.stat, fill=!!sym(total_scores_greater_than_3[[i]])))+
+    geom_bar(position=position_dodge(), stat="identity", colour='black') +
+    scale_fill_manual(values=severity_colors)+
+    # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+    geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+    scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+    labs(x="Overall")+
+    coord_flip()
+}
+
+
+
+#INTERSECTORAL GRAPH
+HH_srv$variables$intersectoral_severity.total<-as.factor(HH_srv$variables$intersectoral_severity.total)
+HH_srv$variables$intersectoral_severity.total<- forcats::fct_expand(HH_srv$variables$intersectoral_severity.total,c(1:6) %>% as.character())
+HH_srv$variables$intersectoral_severity.total<- forcats::fct_relevel(HH_srv$variables$intersectoral_severity.total,c(1:6) %>% as.character())
+
+intersectoral_by_strata<-HH_srv %>%
+  group_by(!!sym(strata),intersectoral_severity.total, .drop=FALSE) %>%
+  summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+  ggplot(aes(x=as.factor(!!sym(strata)), y=mean.stat, fill=intersectoral_severity.total))+
+  geom_bar(position=position_dodge(), stat="identity", colour='black') +
+  scale_fill_manual(values=severity_colors)+
+  # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+  geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+  scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+  labs(x=strata)+
+  coord_flip()
+
+intersectoral_overall<-HH_srv %>%
+  group_by(intersectoral_severity.total, .drop=FALSE) %>%
+  summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+  ggplot(aes(x=as.factor(intersectoral_severity.total), y=mean.stat, fill=intersectoral_severity.total))+
+  geom_bar(position=position_dodge(), stat="identity", colour='black') +
+ scale_fill_brewer(palette = "YlOrRd")+ 
+  # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+  geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+  scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+  labs(x="Overall Severity")+
+  coord_flip()
+
+#AGAINST VULNERABILITY
+#######################################
+if (population=="Refugee"){
+  HH_srv$variables<-HH_srv$variables %>% mutate(
+    Highest_Education_Vulnerability = if_else(I.HH_CHAR.education_level.HH %in%  c("No formal Education","Some Primary"),"Some Primary/No Education", "Primary and Above")
+  )}
+if (population== "Host"){
+  HH_srv$variables<-HH_srv$variables %>% mutate(
+    Highest_Education_Vulnerability = if_else(edu_highest %in%  c("12", "above_12_tertiary_edu"),"12th and above", "Below 12th")
+  )
+}
+
+
+HH_CHAR_vulnerabilities<-c("I.HH_CHAR.size.HH", "I.HH_CHAR.gender_hoh.HH",
+                           "Highest_Education_Vulnerability", 
+                           "I.HH_CHAR.dependency_ratio_classification.HH", "I.HEALTH.indhelp_atleast.INDVHH", "I.FSL.livelihoods_atleast_one_adult.INDVHH")
+
+vulnerability_labels<- c("Size of HH", "Gender of the head of household", "Highest Education Recieved in Household", "Dependency Ratio", "HH with at least one individual requiring daily assistance", "HH with at least one income-earning adult")
+
+sector_labels<-c("Coping", "WASH", "SNFI", "Health", "Education", "asdf", "asdfg", "Protection", "Food Security", "Intersectoral")
+
+
+severity_against_vulnerability_graphs<-list()
+severity_against_vulnerability_graphs<-list()
+vulnerability_graphs_all<-list()
+for(i in 1:length(all_severity_totals)){
+  score_of_interest<-all_severity_totals[[i]]
+  for(j in 1:length(HH_CHAR_vulnerabilities)){
+    vulnerability_characteristic<-HH_CHAR_vulnerabilities[[j]]
+    label_for_axis<-vulnerability_labels[[j]]
+    results_summarised<-HH_srv %>%
+      group_by(!!sym(vulnerability_characteristic),!!sym(score_of_interest), .drop=FALSE) %>%
+      summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci"))
+    
+    severity_against_vulnerability_graphs[[vulnerability_characteristic]]<-results_summarised %>%
+      ggplot(aes(x=as.factor(!!sym(vulnerability_characteristic)), y=mean.stat, fill=!!sym(score_of_interest)))+
+      geom_bar(position=position_dodge(), stat="identity", colour='black') +
+      scale_fill_manual(values=severity_colors)+
+      # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+      geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+      scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+      labs(x = label_for_axis)+
+      coord_flip()+ggtitle("Severity Score Against Vulnerability")+
+      theme(axis.title.x = element_blank(),
+            plot.title = element_text(size=6))
+  }
+  vulnerability_graphs_all[[score_of_interest]]<-severity_against_vulnerability_graphs
+  
+}
+
+
+severity_against_vulnerability_linegraphs<-list()
+severity_against_vulnerability_linegraphs_all<-list()
+
+for(i in 1:length(all_severity_totals)){
+  score_of_interest<-all_severity_totals[[i]]
+  sectoral_label_of_interest<-sector_labels[i]
+  for(j in 1:length(HH_CHAR_vulnerabilities)){
+    vulnerability_characteristic<-HH_CHAR_vulnerabilities[[j]]
+    label_for_axis<-vulnerability_labels[[j]]
+    results_summarised<-HH_srv %>%
+      group_by(!!sym(vulnerability_characteristic),!!sym(score_of_interest), .drop=FALSE) %>%
+      summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci"))
+    
+    severity_against_vulnerability_linegraphs[[vulnerability_characteristic]]<-results_summarised %>%
+      ggplot(aes(x=as.factor(!!sym(score_of_interest)), y=mean.stat, colour=!!sym(vulnerability_characteristic)))+
+      geom_point()+
+      geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2)+
+      geom_line(aes(group=!!sym(vulnerability_characteristic)))+ scale_colour_discrete(drop = TRUE, na.translate=FALSE)+
+      labs(x="Severity Score", y= "Percent Household")+
+      scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+      ggtitle(paste0(sectoral_label_of_interest," Severity by ",label_for_axis)) +theme_clean()+
+      theme(legend.title = element_blank(),
+            plot.title = element_text(size=8))
+    
+    
+    
+  }
+  severity_against_vulnerability_linegraphs_all[[score_of_interest]]<-severity_against_vulnerability_linegraphs
+  
+}
+
+# library(bbplot)
+# severity_against_vulnerability_linegraphs_all$sev_score.snfi.total
+
+sectoral_greater_3<-c("sev_score.coping.total.greater_3", "sev_score.wash.total.greater_3", 
+                      "sev_score.snfi.total.greater_3", "sev_score.health.total.greater_3", 
+                      "sev_score.education.total.greater_3" , "sev_score.protection.total.greater_3", 
+                      "sev_score.FS.total.greater_3")
+HH_srv$variables[,sectoral_greater_3]<-lapply(HH_srv$variables[,sectoral_greater_3],as.factor)
+# percent_per_sector_over3<- butteR::mean_proportion_table(design = HH_srv,list_of_variables = sectoral_greater_3,aggregation_level = NULL,round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = HH_kobo_questionnaire)
+
+# percent_per_sector_over3<-percent_per_sector_over3 %>% select(ends_with("3.1"))
+
+
+```
+
+
+```{r, include=FALSE}
+
+
+strata_boundary<-sf::st_read(dsn = strata_boundary_gdb, strata_boundary_layer)
+
+scores_over3_analyzed_strata<-butteR::mean_proportion_table(design = HH_srv,
+                                                            list_of_variables=total_scores_greater_than_3,
+                                                            aggregation_level = strata,round_to = 2,
+                                                            return_confidence = FALSE,
+                                                            na_replace = FALSE, questionnaire = HH_kobo_questionnaire)
+scores_over3_analyzed_strata<-scores_over3_analyzed_strata %>% select({strata},ends_with(".1"))
+strata_boundary<- sf::st_read(strata_boundary_gdb,strata_boundary_layer)
+
+
+
+if (population=="Refugee"){
+  severity_spatial<-strata_boundary %>% left_join(scores_over3_analyzed_strata, by=c("New_Camp_N"="camp_name"))
+}
+if (population=="Host"){
+  severity_spatial<-strata_boundary %>% left_join(scores_over3_analyzed_strata, by=c("adm4_en"="union_name"))
+}
+severity_spatial_percents<-severity_spatial %>% 
+  mutate_at(vars(ends_with(".1")), funs(round((.* 100),1)))
+
+
+
+greater_than_3_columns<-scores_over3_analyzed_strata %>% select(ends_with("3.1")) %>% colnames()
+greater_than_3_columns
+
+severity_mapset<-list()
+for( i in 1:length(greater_than_3_columns)){
+  severity_of_interest<-greater_than_3_columns[i]
+  my_map<-tm_shape(severity_spatial_percents) +
+    tm_polygons(severity_of_interest, title=c( "4 and above"),popup.vars=c("% 4 and above"= severity_of_interest)) +
+    tm_layout (frame = FALSE, bg.color = "#00000000")
+  severity_mapset[[severity_of_interest]]<-my_map
+  
+}
+
+
+# my_map<-tm_shape(severity_spatial_percents) +
+# tm_polygons("sev_score.coping.total.greater_3.1", title=c( "4 and above"),popup.vars=c("% 4 and above"= "sev_score.coping.total.greater_3.1")) +  tm_layout (frame = FALSE, bg.color = "#00000000")
+
+# my_map
+
+
+
+
+```
+## SNFI - Severity Scores
+### SNFI - Severity - Overall
+
+```{r}
+severity_sector_score_graphs_overall$sev_score.snfi.total
+
+````
+
+
+
+
+```{r, eval= population== "Host", results= 'asis'}
+cat( '###', ' SNFI Severity By Union' )
+### `r ifelse(population=="Host","SNFI Severity - By Union", "")`
+### SNFI Severity - By  `r ifelse(population=="Host","Union", "Camp")`
+severity_sector_score_graphs_strata$sev_score.snfi.total
+# `r if(population=="Host){"###Header\nIs this under the header\n\n##subheader\nis this undersub?"}`
+````
+severity_scores_over3_graphs_strata
+
+### SNFI Severity - 4 and above by  `r ifelse(population=="Host","Union", "Camp")`
+```{r}
+
+severity_scores_over3_graphs_strata$sev_score.snfi.total.greater_3
+
+
+# geom_hline(data=severity_scores_over3_tables_overall$sev_score.snfi.total.greater_3, aes(yintercept= mean.stat_low, linetype=2,color="red"))+
+# geom_hline(data=severity_scores_over3_tables_overall$sev_score.snfi.total.greater_3, aes(yintercept= mean.stat, linetype=1,color="red"))+
+# geom_hline(data=severity_scores_over3_tables_overall$sev_score.snfi.total.greater_3, aes(yintercept= mean.stat_upp, linetype=2,color="red"))+
+# scale_linetype_identity()
+severity_mapset$sev_score.snfi.total.greater_3.1
+
+
+
+# severity_scores_over3_graphs_strata$sev_score.snfi.total.greater_3+
+#   geom_hline(data=severity_scores_over3_tables_overall$sev_score.snfi.total.greater_3, aes(yintercept= c(mean.stat_low,mean.stat,mean.stat_upp), linetype=c(1,2,1),color="red"))+
+#   scale_linetype_identity()
+#   # geom_hline( data=severity_scores_over3_tables_overall$sev_score.snfi.total.greater_3, aes(yintercept=(mean.stat_low),color="red", linetype=2))+
+
+# geom_hline( data=severity_scores_over3_tables_overall$sev_score.snfi.total.greater_3, aes(yintercept=as.numeric(mean.stat_upp),color="red", linetype="2"))
+````
+
+
+### SNFI Severity - By Vulnerability Groups 
+```{r, fig.width=6, fig.height=3.5}
+
+# vulnerability_graphs_all$sev_score.snfi.total
+severity_against_vulnerability_linegraphs_all$sev_score.snfi.total
+
+
+````
+
+## WASH - Severity Scores
+
+### WASH Severity - Overall
+```{r}
+severity_sector_score_graphs_overall$sev_score.wash.total
+
+````
+
+
+
+```{r, eval= population== "Host", results= 'asis'}
+cat( '###', ' WASH Severity By Union' )
+severity_sector_score_graphs_strata$sev_score.wash.total
+### WASH severity By  `r ifelse(population=="Host","Union", "Camp")`
+````
+
+### WASH severity 4 and above by  `r ifelse(population=="Host","Union", "Camp")`
+```{r}
+
+severity_scores_over3_graphs_strata$sev_score.wash.total.greater_3
+severity_mapset$sev_score.wash.total.greater_3.1
+````
+
+
+### WASH Severity - By Vulnerability Groups 
+```{r, fig.width=6, fig.height=3.5}
+
+# vulnerability_graphs_all$sev_score.wash.total
+severity_against_vulnerability_linegraphs_all$sev_score.wash.total
+
+````
+
+
+## EDUCATION - Severity Scores
+
+### Education severity overall
+
+
+```{r}
+severity_sector_score_graphs_overall$sev_score.education.total
+
+````
+
+
+
+```{r, eval= population== "Host", results= 'asis'}
+cat( '###', ' Education Severity By Union' )
+severity_sector_score_graphs_strata$sev_score.education.total
+### Education severity By  `r ifelse(population=="Host","Union", "Camp")`
+````
+
+### Education severity 4 and above by  `r ifelse(population=="Host","Union", "Camp")`
+```{r}
+
+severity_scores_over3_graphs_strata$sev_score.education.total.greater_3
+severity_mapset$sev_score.education.total.greater_3.1
+````
+
+### Education Severity - By Vulnerability Groups 
+```{r, fig.width=6, fig.height=3.5}
+
+# vulnerability_graphs_all$sev_score.education.total
+severity_against_vulnerability_linegraphs_all$sev_score.education.total
+````
+
+
+
+## HEALTH - Severity Scores
+
+### Health severity overall
+
+```{r}
+severity_sector_score_graphs_overall$sev_score.health.total
+````
+
+`
+
+```{r, eval= population== "Host", results= 'asis'}
+cat( '###', ' Health Severity By Union' )
+severity_sector_score_graphs_strata$sev_score.health.total
+### Health severity By  `r ifelse(population=="Host","Union", "Camp")
+````
+
+### Health severity 4 and above by  `r ifelse(population=="Host","Union", "Camp")`
+```{r}
+
+severity_scores_over3_graphs_strata$sev_score.health.total.greater_3
+severity_mapset$sev_score.health.total.greater_3.1
+````
+
+
+### Education Severity - By Vulnerability Groups 
+```{r, fig.width=6, fig.height=3.5}
+
+# vulnerability_graphs_all$sev_score.education.total
+severity_against_vulnerability_linegraphs_all$sev_score.health.total
+````
+
+## FOOD SECURITY - Severity Scores
+
+### Food security overall
+
+```{r}
+severity_sector_score_graphs_overall$sev_score.FS.total
+````
+
+
+
+```{r, eval= population== "Host", results= 'asis'}
+cat( '###', ' Food Security Severity By Union' )
+severity_sector_score_graphs_strata$sev_score.FS.total
+### Food security by  `r ifelse(population=="Host","Union", "Camp")`
+````
+
+
+### Food security - 4 and above by  `r ifelse(population=="Host","Union", "Camp")`
+```{r}
+
+severity_scores_over3_graphs_strata$sev_score.FS.total.greater_3
+severity_mapset$sev_score.FS.total.greater_3.1
+````
+
+
+### Food Security Severity - By Vulnerability Groups 
+```{r, fig.width=6, fig.height=3.5}
+
+# vulnerability_graphs_all$sev_score.FS.total
+severity_against_vulnerability_linegraphs_all$sev_score.FS.total
+````
+
+## PROTECTION - Severity Scores
+
+### Protection severity overall
+
+```{r}
+severity_sector_score_graphs_overall$sev_score.protection.total
+````
+
+
+```{r, eval= population== "Host", results= 'asis'}
+cat( '###', ' Protection Severity By Union' )
+severity_sector_score_graphs_strata$sev_score.protection.total
+## Protection severity By  `r ifelse(population=="Host","Union", "Camp")`
+````
+
+### Protection severity 4 and above by  `r ifelse(population=="Host","Union", "Camp")`
+```{r}
+
+severity_scores_over3_graphs_strata$sev_score.protection.total.greater_3
+severity_mapset$sev_score.protection.total.greater_3.1
+````
+
+
+### Protection Severity - By Vulnerability Groups 
+```{r, fig.width=6, fig.height=3.5}
+
+# vulnerability_graphs_all$sev_score.protection.total
+severity_against_vulnerability_linegraphs_all$sev_score.protection.total
+````
+
+## COPING - Severity Scores
+
+### Coping severity overall
+
+```{r}
+severity_sector_score_graphs_overall$sev_score.coping.total
+````
+
+
+
+```{r, eval= population== "Host", results= 'asis'}
+cat( '###', ' Coping Severity By Union' )
+severity_sector_score_graphs_strata$sev_score.coping.total
+### Coping severity by  `r ifelse(population=="Host","Union", "Camp")`
+````
+
+### Coping severity - 4 and above by  `r ifelse(population=="Host","Union", "Camp")`
+```{r}
+
+severity_scores_over3_graphs_strata$sev_score.coping.total.greater_3
+severity_mapset$sev_score.coping.total.greater_3.1
+````
+
+### Coping Severity - By Vulnerability Groups 
+```{r, fig.width=6, fig.height=3.5}
+
+# vulnerability_graphs_all$sev_score.coping.total
+severity_against_vulnerability_linegraphs_all$sev_score.coping.total
+````
+
+
+## INTERSECTORAL SEVERITY 
+
+### Overall Intersectoral Severity
+
+```{r}
+intersectoral_overall
+
+````
+
+
+
+```{r, eval= population== "Host", results= 'asis'}
+cat( '###', ' Intersectoral Severity By Union' )
+intersectoral_by_strata
+### Intersectoral Severity by  `r ifelse(population=="Host","Union", "Camp")`
+````
+
+### Intersectoral Severity - 4 and above by  `r ifelse(population=="Host","Union", "Camp")`
+```{r}
+
+severity_scores_over3_graphs_strata$intersectoral_severity.total.greater_3
+# severity_mapset$intersectoral_severity.total.greater_3.1
+severity_scores_over3_graphs_strata_projected$intersectoral_severity.total.greater_3
+
+````
+
+### Intersectoral Severity - By Vulnerability Groups 
+```{r, fig.width=6, fig.height=3.5}
+
+# vulnerability_graphs_all$intersectoral_severity.total
+severity_against_vulnerability_linegraphs_all$intersectoral_severity.total
+````
+
+
+### Intersectoral Severity - By Vulnerability Groups 
+```{r}
+severity_against_vulnerability_linegraphs_all$intersectoral_severity.total
+# vulnerability_graphs_all$intersectoral_severity.total
+# severity_scores_over3_graphs_strata
+````
+
+## Multi-Sectoral
+### Intersect Plot
+```{r}
+
+HH_srv$variables$weights<-weights(HH_srv)
+HH_data<-data.frame(HH_srv$variables)
+greater_3_sectoral_and_coping<-c("sev_score.coping.total.greater_3", "sev_score.wash.total.greater_3", 
+                                 "sev_score.snfi.total.greater_3", "sev_score.health.total.greater_3", 
+                                 "sev_score.education.total.greater_3",  
+                                 "sev_score.protection.total.greater_3", 
+                                 "sev_score.FS.total.greater_3")
+
+
+greater_3_sectoral<-c( "sev_score.wash.total.greater_3", 
+                       "sev_score.snfi.total.greater_3", "sev_score.health.total.greater_3", 
+                       "sev_score.education.total.greater_3",  
+                       "sev_score.protection.total.greater_3", 
+                       "sev_score.FS.total.greater_3")
+
+
+newnames_sectoral_and_coping<-c("COPING", "WASH", "SNFI", "HEALTH", "EDUCATION", "PROTECTION", "FOOD_SECURITY")
+
+setnames(HH_data, old = greater_3_sectoral_and_coping, new = newnames_sectoral_and_coping)
+newnames_sectoral<-c("WASH", "SNFI", "HEALTH", "EDUCATION", "PROTECTION", "FOOD_SECURITY")
+if(population=="Refugee"){
+  multisectoral_label= "Refugee - Intersecting Multisectoral Needs"
+}
+if(population=="Host"){
+  multisectoral_label= "Host Community - Intersecting Multisectoral Needs"
+}
+
+HH_data[,newnames_sectoral_and_coping]<- sapply(HH_data[,newnames_sectoral_and_coping],function(x) as.numeric(as.character(x)))
+
+multisectoral_above_3_with_coping<-Setviz::plot_set_percentages(data=HH_data,varnames = newnames_sectoral_and_coping,weight_variable = "weights",exclude_unique = FALSE,label =paste0(multisectoral_label," (with coping)"),nintersects = 12)
+
+
+multisectoral_above_3<-Setviz::plot_set_percentages(data=HH_data,varnames = newnames_sectoral,weight_variable = "weights",exclude_unique = FALSE,label =multisectoral_label,nintersects = 12)
+
+
+multisectoral_above_3_with_coping
+multisectoral_above_3
+````
+
+### Radar plot
+```{r}
+
+sectoral_totals<-c("sev_score.education.total", 
+                   "sev_score.snfi.total", 
+                   "sev_score.FS.total", 
+                   "sev_score.health.total", 
+                   "sev_score.protection.total",
+                   "sev_score.wash.total")
+HH_srv$variables[,sectoral_totals]<-lapply(HH_srv$variables[,sectoral_totals],
+                                           function(x) as.numeric(as.character(x)))
+
+
+if(population=="Host"){
+  radar_group="upazilla_name"}
+if (population=="Refugee"){
+  radar_group="Upazila"
+}
+
+radar_plot_by_upazilla_4_and_greater<-msni19::radar_graph(HH_srv$variables, 
+                                            lsg = c("sev_score.education.total", 
+                                                    "sev_score.snfi.total", 
+                                                    "sev_score.FS.total", 
+                                                    "sev_score.health.total", 
+                                                    "sev_score.protection.total",
+                                                    "sev_score.wash.total"),
+                                            lsg_labels = c("Education",
+                                                           "Shelter\nand NFI",
+                                                           "Food Security",
+                                                           "Health",
+                                                           "Protection",
+                                                           "WASH"),
+                                            group = radar_group,
+                                            # group_labels = c("Everyone"),
+                                            weighting_function = weighting,
+                                            print_plot = F,
+                                            plot_name = "radar",
+                                            path = "graphs",
+                                            index_threshold=4)+ggtitle("% >= 4 Severity Per Sector")
+
+radar_plot_by_upazilla_3_and_greater<-msni19::radar_graph(HH_srv$variables, 
+                                            lsg = c("sev_score.education.total", 
+                                                    "sev_score.snfi.total", 
+                                                    "sev_score.FS.total", 
+                                                    "sev_score.health.total", 
+                                                    "sev_score.protection.total",
+                                                    "sev_score.wash.total"),
+                                            lsg_labels = c("Education",
+                                                           "Shelter\nand NFI",
+                                                           "Food Security",
+                                                           "Health",
+                                                           "Protection",
+                                                           "WASH"),
+                                            group = radar_group,
+                                            # group_labels = c("Everyone"),
+                                            weighting_function = weighting,
+                                            print_plot = F,
+                                            plot_name = "radar",
+                                            path = "graphs",
+                                            index_threshold=3)+ggtitle("% >= 3 Severity Per Sector")
+radar_plot_by_upazilla_4_and_greater
+radar_plot_by_upazilla_3_and_greater
+
+```
+
+
+
+```{r, eval= population== "Host", results= 'asis'}
+cat( '##', ' Relationship Testing - Distance to camp' )
+
+
+HH_rt<-HH_srv
+HH_rt$variables$euc_dist_to_camp_km=HH_rt$variables$euc_dist_to_camp_m/1000
+
+#loop through each of the sectors
+
+
+
+#FIREWOOD VS DISTANCE
+firewood_model<-svyglm(formula = cooking_fuel.collected_firewood~ euc_dist_to_camp_km,
+           HH_rt)
+# sjPlot::tab_model(firewood_model, auto.label = FALSE,title = "Table 1. Firewood vs Distance") %>% print()
+
+
+#TENSIONS BETWEEN COMMUNITY AND ROHINGYA
+HH_rt$variables$tension<-HH_rt$variables$tension %>% as.factor()
+HH_rt$variables$tension_binary<-ifelse(HH_rt$variables$tension=="yes",1,0)
+
+
+
+
+#distance and humanitarian aid
+HH_rt$variables$humanitarian_aid_yes_binary<-if_else(HH_rt$variables$humanitarian_aid=="yes",1,0)
+
+HH_rt$variables$enough_water_all_needs<-if_else(HH_rt$variables$I.WASH.enough_water_all_needs.HH=="yes",1,0)
+
+# HH_rt$variables$union_name
+HH_rt$variables$used_surface_water_in_dry_season<-if_else(HH_svy_ob$variables$surface_water_access %in% c("dont_know", "never"),0,1)
+
+#DISTANCE AGAINST SEVERITY?
+HH_rt$variables$intersectoral_severity.total<-as.numeric(HH_rt$variables$intersectoral_severity.total)
+
+
+to_test_against_distance<-c("cooking_fuel.collected_firewood", "tension_binary", 
+                   "humanitarian_aid_yes_binary", "used_surface_water_in_dry_season", "intersectoral_severity.total")
+variables_against_distance_graphs<-list()
+pval<-list()
+for ( i in 1: length(to_test_against_distance)){
+  variable_of_interest<-to_test_against_distance[i]
+  model_of_interest<-svyglm(formula = formula(paste0(variable_of_interest, "~euc_dist_to_camp_km")),HH_rt)
+  pval_df=data.frame(coef(summary(model_of_interest)))
+  pval[[variable_of_interest]]= round(pval_df[nrow(pval_df), ncol(pval_df)],3)
+  variables_against_distance_graphs[[variable_of_interest]]<-allEffects(model_of_interest)
+}
+
+
+plot(variables_against_distance_graphs$cooking_fuel.collected_firewood, main=paste0("cooking_fuel.collected_firewood (p =  ",pval$cooking_fuel.collected_firewood,")"), xlab= "Distance to Camp (km)")
+
+plot(variables_against_distance_graphs$tension_binary, main=paste0("Tension (p =  ",pval$tension_binary,")"), xlab= "Distance to Camp (km)")
+plot(variables_against_distance_graphs$humanitarian_aid_yes_binary, main=paste0("Humanitarian Aid (p =  ",pval$humanitarian_aid_yes_binary,")"), xlab= "Distance to Camp (km)")
+plot(variables_against_distance_graphs$used_surface_water_in_dry_season, main=paste0("Use of Surface Water in Dry Season (p =  ",pval$used_surface_water_in_dry_season,")"), xlab= "Distance to Camp (km)")
+plot(variables_against_distance_graphs$intersectoral_severity.total, main=paste0("Intersectoral Severity (p =  ",pval$intersectoral_severity.total,")"), xlab= "Distance to Camp (km)")
+
+
+
+
+#loop through each of the sectors
+
+sectoral_totals<-c("sev_score.wash.total", "sev_score.snfi.total", 
+                   "sev_score.health.total", "sev_score.education.total", "sev_score.protection.total",
+                   "sev_score.FS.total")
+
+sectoral_distance_logistic_graphs<-list()
+pval<-list()
+for ( i in 1: length(sectoral_totals)){
+  sector_of_interest<-sectoral_totals[i]
+  model_of_interest<-svyglm(formula = formula(paste0(sector_of_interest, "~euc_dist_to_camp_km")),HH_rt)
+  pval_df=data.frame(coef(summary(model_of_interest)))
+  pval[[sector_of_interest]]= round(pval_df[nrow(pval_df), ncol(pval_df)],3)
+  sectoral_distance_logistic_graphs[[sector_of_interest]]<-allEffects(model_of_interest)
+}
+
+
+
+plot(sectoral_distance_logistic_graphs$sev_score.wash.total, main=paste0("WASH Sectoral Score (p =  ",pval$sev_score.wash.total,")"), xlab= "Distance to Camp (km)")
+plot(sectoral_distance_logistic_graphs$sev_score.snfi.total, main=paste0("SNFI Sectoral Score (p =  ",pval$sev_score.snfi.total,")"), xlab= "Distance to Camp (km)")
+plot(sectoral_distance_logistic_graphs$sev_score.health.total, main=paste0("Health Sectoral Score (p =  ",pval$sev_score.health.total,")"), xlab= "Distance to Camp (km)")
+plot(sectoral_distance_logistic_graphs$sev_score.education.total,main=paste0("Education Sectoral Score (p =  ",pval$sev_score.education.total,")"), xlab= "Distance to Camp (km)")
+plot(sectoral_distance_logistic_graphs$sev_score.protection.total,main=paste0("Protection Sectoral Score (p =  ",pval$sev_score.protection.total,")"), xlab= "Distance to Camp (km)")
+plot(sectoral_distance_logistic_graphs$sev_score.FS.total,main=paste0("Food Security Sectoral Score (p =  ",pval$sev_score.FS.total,")"), xlab= "Distance to Camp (km)")
+
+
+ggplot(data=HH_rt$variables, aes(x= euc_dist_to_camp_km, y= I.FCS_score))+geom_point()+
+  labs(x="Distance to camp (km)", y= "Food Consumption Score")
+# plot(HH_svy_ob$variables$I.FCS_score, HH_svy_ob$variables$euc_dist_to_camp_m)
+````
+
+
+```{r, eval=FALSE}
+severity_sector_score_graphs_overall$
+  severity_sector_score_graphs_overall$sev_score.wash.sub.coping
+severity_sector_score_graphs_overall$sev_score.wash.sub.wellbeing
+````
+
+
+
+```{r, eval=FALSE}
+severity_sector_score_graphs_strata$sev_score.wash.sub.living_standards
+severity_sector_score_graphs_strata$sev_score.wash.sub.coping
+severity_sector_score_graphs_strata$sev_score.wash.sub.wellbeing
+````
+
+
+
+
+
+
+
+
+```{r, eval=FALSE}
+severity_sub_component_graphs_strata$sev_score.snfi.sub.power
+severity_sub_component_graphs_strata$sev_score.snfi.sub.structure
+severity_sub_component_graphs_strata$sev_score.snfi.sub.tenure
+````
+
+
+```{r, eval=FALSE}
+severity_sub_component_graphs_overall$sev_score.snfi.sub.power
+severity_sub_component_graphs_overall$sev_score.snfi.sub.structure
+severity_sub_component_graphs_overall$sev_score.snfi.sub.tenure
+````
+
+
+
+
+
+```{r, eval=FALSE}
+
+HH_srv<-as_survey(HH_svy_ob)
+HH_severity$sev_score.snfi.total
+severity_sub_component_nfi<-HH_srv %>% select(intersect(contains("sub"), contains("snfi"))) %>% colnames()
+# HH_srv$variables[,subs]<-sapply(HH_srv$variables[,subs],as.numeric)
+# butteR::barplot_by_group(design = HH_srv,list_of_variables = subs,aggregation_level = NULL,binary = FALSE)
+# butteR::barplot_by_group(design = HH_srv,list_of_variables = subs,aggregation_level = strata,binary = FALSE)
+
+severity_sub_component_graphs<-list()
+for(i in 1:length(severity_sub_component_nfi)){
+  severity_sub_component_graphs[[severity_sub_component_nfi[[i]]]]<-HH_srv %>%
+    group_by(!!sym(strata),!!sym(severity_sub_component_nfi[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+    ggplot(aes(x=as.factor(!!sym(strata)), y=mean.stat, fill=!!sym(severity_sub_component_nfi[[i]])))+
+    geom_bar(position=position_dodge(), stat="identity", colour='black') +
+    scale_fill_manual(values=severity_colors)+
+    # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+    geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+    scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+    labs(x=strata)+
+    coord_flip()
+}
+severity_sub_component_graphs
+```
+
+```{r,fig.height=10 ,eval=FALSE}
+# asdf<- HH_srv$variables %>% select(starts_with("sev.snfi.structure")) %>% colnames()
+# HH_srv$variables %>% select("X_uuid", starts_with("int.snfi.imp"),starts_with("sev.snfi.structure")) %>% data.frame() %>% 
+# mutate(asdf2=if_else(rowSums(.[asdf],na.rm = TRUE)==0,1,0)) %>% filter(asdf2==1)
+
+HH_srv<-as_survey(HH_svy_ob)
+
+severity_components<-HH_srv %>% select(intersect(starts_with("sev_score"), contains( ".sub."))) %>% colnames()
+severity_totals_over_3<-HH_srv %>% select(intersect(starts_with("sev_score"), ends_with("total_over_3"))) %>% colnames()
+
+severity_sub_component_nfi<- HH_srv %>% select(starts_with("sev_score.snfi.sub")) %>% colnames()
+severity_int_component_health<-HH_srv %>% select(starts_with("int.health")) %>% colnames()
+severity_int_component_education<-HH_srv %>% select(starts_with("int.education")) %>% colnames()
+severity_sector_finals= HH_srv %>% select(intersect(starts_with("sev_score"),ends_with(".total"))) %>% colnames
+HH_srv$variables[,severity_components]<-lapply(HH_srv$variables[,severity_components], as.factor)
+HH_srv$variables[,severity_components]<-lapply(HH_srv$variables[,severity_components], function(x)forcats::fct_expand(x,"1","2", "3", "4","5") %>% fct_relevel("1","2", "3", "4","5"))
+
+HH_srv$variables[,severity_sector_finals]<-lapply(HH_srv$variables[,severity_sector_finals], as.factor)
+HH_srv$variables[,severity_sector_finals]<-lapply(HH_srv$variables[,severity_sector_finals], function(x)forcats::fct_expand(x,"1","2", "3", "4","5") %>% fct_relevel("1","2", "3", "4","5"))
+
+# stratified_severities_over3<-butteR::barplot_grouped_binaries(design = HH_srv,list_of_variables = severity_totals_over_3,aggregation_level = strata )
+# stratified_severities_over3
+
+```
+
+
+```{r,fig.height=10, eval=FALSE}
+
+severity_sub_component_nfi<- HH_srv %>% select(intersect(starts_with("sev_score"), contains("sub"))) %>% colnames()
+severity_sub_component_graphs<-list()
+for(i in 1:length(severity_sub_component_nfi)){
+  severity_sub_component_graphs[[severity_sub_component_nfi[[i]]]]<-HH_srv %>%
+    group_by(!!sym(strata),!!sym(severity_sub_component_nfi[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+    ggplot(aes(x=as.factor(!!sym(strata)), y=mean.stat, fill=!!sym(severity_sub_component_nfi[[i]])))+
+    geom_bar(position=position_dodge(), stat="identity", colour='black') +
+    scale_fill_manual(values=severity_colors)+
+    # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+    geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+    scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+    labs(x=strata)+
+    coord_flip()
+}
+
+for(i in 1:length(severity_components)){
+  severity_sub_component_graphs[[severity_components[[i]]]]<-HH_srv %>%
+    group_by(!!sym(strata),!!sym(severity_components[[i]]), .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+    ggplot(aes(x=as.factor(!!sym(strata)), y=mean.stat, fill=!!sym(severity_components[[i]])))+
+    geom_bar(position=position_dodge(), stat="identity", colour='black') +
+    scale_fill_manual(values=severity_colors)+
+    # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+    geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+    scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+    labs(x=strata)+
+    coord_flip()
+}
+
+
+severity_sub_component_graphs
+
+
+stratified_intermediate_health_graphs<-butteR::barplot_grouped_binaries(design = HH_srv,list_of_variables = severity_int_component_health,aggregation_level = strata )
+
+overall_intermediate_health_graphs<-butteR::barplot_grouped_binaries(design = HH_srv,list_of_variables = severity_int_component_health,aggregation_level = NULL)
+overall_intermediate_education_graphs<-butteR::barplot_grouped_binaries(design = HH_srv,list_of_variables = severity_int_component_education,aggregation_level = NULL)
+
+
+
+
+severity_sector_final_graphs<-list()
+for(i in 1:length(severity_sector_finals)){
+  severity_sector_final_graphs[[severity_sector_finals[[i]]]]<-HH_srv %>% 
+    group_by(!!sym(strata),!!sym(severity_sector_finals[[i]]), .drop=FALSE) %>% 
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>% 
+    ggplot(aes(x=as.factor(!!sym(strata)), y=mean.stat, fill=!!sym(severity_sector_finals[[i]])))+
+    scale_fill_manual(values=severity_colors,aesthetics="fill")+
+    # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+    # scale_color_discrete_sequential(palette = "Blues", nmax = 6, order = 2:6)+
+    geom_bar(position=position_dodge(), stat="identity", colour='black') +
+    geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+    scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+    labs(x=strata)+
+    coord_flip()
+}
+
+
+severity_sector_final_graphs
+
+
+
+```
+
+```{r,eval=FALSE}
+overall_intermediate_health_graphs
+
+
+
+````
+
+
+```{r,fig.height=20, out.width= "100%", eval=FALSE}
+
+stratified_intermediate_health_graphs
+
+overall_intermediate_education_graphs
+````
+
+
+```{r, eval=FALSE}
+
+```
+
+
+
+
+```{r}
+
+```
+
+
+```{r, eval=FALSE}
+# severity_sub_component_graphs<-list()
+# for(i in 1:length(severity_sub_component)){
+# severity_sub_component_graphs[[severity_sub_component[[i]]]]<-HH_srv %>% 
+#   group_by(I.HH_CHAR.gender_hoh.HH,!!sym(severity_sub_component[[i]]), .drop=FALSE) %>% 
+#   summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>% 
+#   ggplot(aes(x=as.factor(I.HH_CHAR.gender_hoh.HH), y=mean.stat, fill=!!sym(severity_sub_component[[i]])))+
+#     geom_bar(position=position_dodge(), stat="identity", colour='black') +
+#   geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+#   scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+#   coord_flip()
+# }
+# severity_sub_component_graphs
+
+
+HH_CHAR_vulnerabilities<-c("I.HH_CHAR.size.HH", "I.HH_CHAR.gender_hoh.HH",
+                           "I.HH_CHAR.education_level.HH", 
+                           "I.HH_CHAR.dependency_ratio_classification.HH", "I.HEALTH.indhelp_atleast.INDVHH")
+
+HH_srv$variables$I.HEALTH.indhelp_atleast.INDVHH
+# HH_srv$variables %>% select(starts_with("I.HH_CHAR")) %>% colnames() %>% dput()
+
+# HH_srv$variables$i.hh_char
+severity_against_vulnerability_graphs<-list()
+rezzys<-list()
+for(i in 1:length(HH_CHAR_vulnerabilities)){
+  vulnerability_characteristic<-HH_CHAR_vulnerabilities[[i]]
+  print(vulnerability_characteristic)
+  results_summarised<-HH_srv %>%
+    group_by(!!sym(vulnerability_characteristic),sev_score.snfi.total, .drop=FALSE) %>%
+    summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci"))
+  rezzys[[i]]<-results_summarised
+  severity_against_vulnerability_graphs[[vulnerability_characteristic]]<-results_summarised %>%
+    ggplot(aes(x=as.factor(!!sym(vulnerability_characteristic)), y=mean.stat, fill=sev_score.snfi.total))+
+    geom_bar(position=position_dodge(), stat="identity", colour='black') +
+    colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+    
+    geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+    scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+    coord_flip()
+}
+
+severity_against_vulnerability_graphs$I.HH_CHAR.size.HH
+# severity_against_vulnerability_graphs
+
+```
+
+```{r, eval=FALSE}
+
+sev_score_cols<-c("sev_score.snfi.structure", "sev_score.snfi.tenure", "sev_score.snfi.power", 
+                  "sev_score.snfi.nfi", "sev_score.snfi.number4", "sev_score.snfi.number3", 
+                  "sev_score.snfi.number2", "sev_score.snfi.number1", 
+                  "sev_score.snfi.total.s4", "sev_score.snfi.total.s3", "sev_score.snfi.total.s2", 
+                  "sev_score.snfi.total")
+sev_score_cols <- HH_svy_ob$variables %>% select(starts_with("sev_score"), -ends_with(".s5")) %>% colnames()
+
+HH_svy_ob$variables[,sev_score_cols]<-lapply(HH_svy_ob$variables[,sev_score_cols], as.factor)
+sev_score_cols<-c(sev_score_cols,"rank_priority_need_2")
+strata_boundary<-sf::st_read(dsn = strata_boundary_gdb, strata_boundary_layer)
+# debugonce(butteR::mean_proportion_table)
+sev_scores_aggregated<-butteR::mean_proportion_table(design = HH_svy_ob,list_of_variables=sev_score_cols,aggregation_level = strata,round_to = 2,return_confidence = FALSE,na_replace = TRUE)
+
+strata_boundary<- sf::st_read(strata_boundary_gdb,strata_boundary_layer)
+severity_spatial<-strata_boundary %>% left_join(sev_scores_aggregated,, by=c("adm4_en"="union_name"))
+
+library(tmap)
+my_map<-tm_shape(severity_spatial) +
+  tm_polygons("sev_score.snfi.total.4")
+my_map<- my_map+ tm_shape(severity_spatial)+
+  tm_polygons("sev_score.snfi.total.3")
+tmap_mode("view")
+my_map2<-tm_shape(severity_spatial) +
+  tm_polygons(c("sev_score.snfi.total.4","sev_score.snfi.total.3","sev_score.snfi.total.2","sev_score.snfi.total.1"),
+              title=c("SNFI Sev. 4", "SNFI Sev. 3","SNFI Sev. 2","SNFI Sev. 1"),popup.vars=c("Sev 4"="sev_score.snfi.total.4",
+                                                                                             "Sev 3"="sev_score.snfi.total.3","Sev 2"="sev_score.snfi.total.2",
+                                                                                             "Sev 1"="sev_score.snfi.total.1")) +
+  tm_facets(sync = TRUE, ncol = 2)
+if(population=="Host"){
+  sev_score_cols<-"sev_score.snfi.total"
+  my_map2<-tm_shape(severity_spatial) +
+    tm_polygons(c("sev_score.snfi.total.3","sev_score.snfi.total.2","sev_score.snfi.total.1"),
+                title=c( "SNFI Sev. 3","SNFI Sev. 2","SNFI Sev. 1"),popup.vars=c(
+                  "Sev 3"="sev_score.snfi.total.3","Sev 2"="sev_score.snfi.total.2",
+                  "Sev 1"="sev_score.snfi.total.1")) +
+    tm_facets(sync = TRUE, ncol = 2)
+}
+
+```
+
+
+
+
+```{r, eval=FALSE}
+getmode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+norm_vec <- function(x) sqrt(sum(x^2))
+lp_vec<-function(x)((sum(x^2)))^(1/(length(x)))
+# lp_vec2<-function(x)(sum(x^2))^(1/5)
+lp_vecb<-function(x)(sum(x^(1/length(x))))^length(x)
+
+lp_vecc<-function(x)(sum(x^(length(x))))^(1/length(x))
+
+# Hmisc::latexTranslate("((sum(x^(1/length(x))))^length(x))/(length(x)^length(x))")
+
+lp_benini<-function(x) ((sum(x^(1/length(x))))^length(x))/(length(x)^length(x))
+
+# lp_benini<-function(x)(sum(x^1/length(x)))#/(x^length(x))
+
+HH_srv<-as_survey(HH_svy_ob)
+HH_srv2<-HH_srv
+sectoral_totals<-HH_srv %>% select(intersect(starts_with("sev_score"), ends_with(".total"))) %>% colnames()
+HH_srv$variables[,sectoral_totals]<-sapply(HH_srv$variables[,sectoral_totals], as.numeric)
+# sapply(HH_srv$variables[,sectoral_totals], range) %>% range()
+
+HH_srv2$variables<-HH_srv$variables %>% 
+  mutate(
+    sev_score_intersectoral_max.total=apply(HH_srv$variables[,sectoral_totals],1,max),
+    sev_score_intersectoral_mean.total= apply(HH_srv$variables[,sectoral_totals],1, mean),
+    sev_score_intersectoral_mean_round.total=round(sev_score_intersectoral_mean.total,0),
+    sev_score_intersectoral_mean_roundup.total=ceiling(sev_score_intersectoral_mean.total),
+    sev_score_intersectoral_median.total=apply(HH_srv$variables[,sectoral_totals],1, median),
+    sev_score_intersectoral_mode.total=apply(HH_srv$variables[,sectoral_totals],1, getmode),
+    # sev_score_intersectoral_norm.total=apply(HH_srv$variables[,sectoral_totals],1, norm_vec),
+    sev_score_intersectoral_l2norm.total=apply(HH_srv$variables[,sectoral_totals] %>% as.matrix,1, Rtreemix::L2.norm),
+    sev_score_intersectoral_lp_benini.total=apply(HH_srv$variables[,sectoral_totals], 1,lp_benini),#/(length(sectoral_totals)^length(sectoral_totals)),
+    # sev_score_intersectoral_lpnorm.total=apply(HH_srv$variables[,sectoral_totals] ,1, lp_vec),
+    # sev_score_intersectoral_lpnorm2.total=apply(HH_srv$variables[,sectoral_totals] ,1, lp_vec2),
+    # sev_score_intersectoral_lpvecb.total=apply(HH_srv$variables[,sectoral_totals] ,1, lp_vecb),
+    sev_score_intersectoral_lpvecc.total=apply(HH_srv$variables[,sectoral_totals] ,1, lp_vecc),
+    sev_score_intersectoral_lpvecc_rescaled.total=scales::rescale(HH_srv2$variables$sev_score_intersectoral_lpvecc.total, to = c(1, 6))
+    
+    
+  )
+
+
+
+
+
+
+
+inter_sectoral_totals<-HH_srv2 %>% select(intersect(starts_with("sev_score_intersectoral"), ends_with(".total"))) %>% colnames()
+
+
+HH_srv2$variables[,inter_sectoral_totals]$sev_score_intersectoral_lp_benini.total %>% range()
+
+butteR:::barplot_by_group(HH_srv2,list_of_variables = inter_sectoral_totals,aggregation_level = NULL ,binary=FALSE)+ggtitle("intersectoral severity scores")
+# butteR::barplot_grouped_binaries(HH_srv2,list_of_variables = all_sectoral_totals,aggregation_level = NULL)
+
+# butteR:::barplot_by_group(HH_srv2,list_of_variables = all_sectoral_totals,aggregation_level = strata ,binary=FALSE)
+
+
+intersectoral_matrix_with_sectoral<- HH_srv2$variables[,c(sectoral_totals,"sev_score_intersectoral_mean.total")]
+# pca_intersectoral_matrix_with_sectoral<-princomp(x = intersectoral_matrix_with_sectoral)
+pca_intersectoral_matrix_with_sectoral<-prcomp(intersectoral_matrix_with_sectoral, scale=TRUE)
+# fit <- prcomp(USArrests, scale=T)
+
+
+# ggbiplot::
+
+
+```
+
+
+
+```{r, eval=FALSE}
+
+
+
+#ANALYZE INTS WITH BUTTER
+HH_srv<-as_survey(HH_svy_ob)
+all_intermediate_steps<- HH_srv %>% select(starts_with("int.")) %>%colnames() 
+HH_srv$variables[,all_intermediate_steps]<-lapply(HH_srv$variables[ ,all_intermediate_steps],as.factor )
+HH_srv$variables$int.health.adult_requiring_assistance_all<- forcats::fct_expand(HH_srv$variables$int.health.adult_requiring_assistance_all, "1")
+HH_srv$variables$int.sev_score.protection.mental_phys.s5<- forcats::fct_expand(HH_srv$variables$int.sev_score.protection.mental_phys.s5, "1")
+
+intermediates_analyzed_by_strata<-butteR::mean_proportion_table(design=HH_srv,list_of_variables = all_intermediate_steps,aggregation_level = strata,round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = HH_kobo_questionnaire)
+intermediates_analyzed_overall<-butteR::mean_proportion_table(design=HH_srv,list_of_variables = all_intermediate_steps,aggregation_level = NULL,round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = HH_kobo_questionnaire)
+
+date_for_title<-stringr::str_replace_all(Sys.Date(),"-","_")
+intermediates_analyzed_by_strata %>% write.csv(paste0("Outputs/", date_for_title,"_", population,"_intermediate_severity_components_BY_STRATA.csv"))
+intermediates_analyzed_overall %>% write.csv(paste0("Outputs/", date_for_title,"_", population,"_intermediate_severity_components_OVERALL.csv"))
+
+
+all_sub_components<- HH_svy_ob$variables %>% select(intersect(starts_with("sev_score"), contains(".sub"))) %>%colnames() 
+HH_srv$variables[,all_sub_components]<-lapply(HH_srv$variables[ ,all_sub_components],as.factor )
+subs_analyzed_by_strata<-butteR::mean_proportion_table(design=HH_srv,list_of_variables = all_sub_components,aggregation_level = strata,round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire =
+                                                         HH_kobo_questionnaire)
+subs_analyzed_overall<-butteR::mean_proportion_table(design=HH_srv,list_of_variables = all_sub_components,aggregation_level = NULL,round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = HH_kobo_questionnaire)
+subs_analyzed_by_strata %>% write.csv(paste0("Outputs/", date_for_title,"_", population,"_SUBS_severity_components_BY_STRATA.csv"))
+subs_analyzed_overall %>% write.csv(paste0("Outputs/", date_for_title,"_", population,"_SUBS_severity_components_OVERALL.csv"))
+
+sectoral_severity_totals<- HH_svy_ob$variables %>% select(intersect(starts_with("sev_score"), ends_with(".total"))) %>%colnames() 
+
+HH_srv$variables[,sectoral_severity_totals]<-lapply(HH_srv$variables[ ,sectoral_severity_totals],as.factor )
+sectoral_totals_analyzed_by_strata<-butteR::mean_proportion_table(design=HH_srv,list_of_variables = sectoral_severity_totals,aggregation_level = strata,round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire =
+                                                                    HH_kobo_questionnaire)
+sectoral_totals_overall<-butteR::mean_proportion_table(design=HH_srv,list_of_variables = sectoral_severity_totals,aggregation_level = NULL,round_to = 2,return_confidence = FALSE,na_replace = FALSE,questionnaire = HH_kobo_questionnaire)
+
+
+sectoral_totals_analyzed_by_strata %>% write.csv(paste0("Outputs/", date_for_title,"_", population,"_sectoral_sev.totals_BY_STRATA.csv"))
+sectoral_totals_overall %>% write.csv(paste0("Outputs/", date_for_title,"_", population,"_sectoral_sev.totals_severity_components_OVERALL.csv"))
+
+# HH_srv$variables[,subs]<-sapply(HH_srv$variables[,subs],as.numeric)
+# butteR::barplot_by_group(design = HH_srv,list_of_variables = subs,aggregation_level = NULL,binary = FALSE)
+# butteR::barplot_by_group(design = HH_srv,list_of_variables = subs,aggregation_level = strata,binary = FALSE)
+
+
+
+
+```
+
+```{r, eval=FALSE}
+
+all_severity_totals<-HH_srv %>% select(intersect(starts_with("sev_score"), ends_with(".total"))) %>%colnames()
+
+
+# HH_srv2$variables[,all_severity_totals]<-sapply(HH_srv2$variables[,all_severity_totals],as.integer) 
+
+
+
+all_severity_totals_by_camp<-butteR::mean_proportion_table(design = HH_srv2, list_of_variables =  all_severity_totals, aggregation_level = "camp_name",questionnaire = HH_kobo_questionnaire, return_confidence = FALSE)
+
+
+
+```
+
+
+```{r, eval=FALSE}
+#SCRAP COPIED FROM ABOVE
+# severity_scores_over3_tables_strata$sev_score.snfi.total.greater_3 %>% 
+#   filter(sev_score.snfi.total.greater_3==1) %>% 
+#   left_join(pop, by=("camp_name"="camp_id")) %>% 
+#   mutate(projected_populationHH_over3_mean=Total.Families*mean.stat,
+#          projected_populationHH_over3_mean_upp= Total.Families*mean.stat_upp,
+#          projected_populationHH_over3_mean_low= Total.Families*mean.stat_low
+#          )
+# 
+# severity_scores_over3_tables_strata$sev_score.snfi.total.greater_3 %>% 
+#   filter(sev_score.snfi.total.greater_3==1) %>% 
+#   left_join(pop, by=setNames(sf_stratastrata,)) %>% 
+#   mutate(projected_populationHH_over3_mean=Total.Families*mean.stat,
+#          projected_populationHH_over3_mean_upp= Total.Families*mean.stat_upp,
+#          projected_populationHH_over3_mean_low= Total.Families*mean.stat_low
+#          )
+
+
+
+
+
+
+# #MAKE ALL SUB GRAPHS AT STRATA AND OVERALL LEVEL
+# severity_sub_components<- HH_srv %>% select(intersect(starts_with("sev_score"), contains("sub"))) %>% colnames()
+# HH_srv$variables[,severity_sub_components]<-lapply(HH_srv$variables[,severity_sub_components],as.factor)
+# severity_sub_component_graphs_strata<-list()
+# 
+# severity_sub_component_graphs_overall<-list()
+# for(i in 1:length(severity_sub_components)){
+#   
+#   severity_sub_component_graphs_overall[[severity_sub_components[[i]]]]<-HH_srv %>%
+#     group_by(!!sym(severity_sub_components[[i]]), .drop=FALSE) %>%
+#     summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+#     ggplot(aes(x=!!sym(severity_sub_components[[i]]), y=mean.stat, fill=!!sym(severity_sub_components[[i]])))+
+#     geom_bar(position=position_dodge(), stat="identity", colour='black') +
+#     scale_fill_manual(values=severity_colors)+
+#     # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+#     geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+#     scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+#     labs(x="Overall")+
+#     coord_flip()
+# }
+# 
+# 
+# 
+# 
+# 
+# for(i in 1:length(severity_sub_components)){
+#   
+#   severity_sub_component_graphs_strata[[severity_sub_components[[i]]]]<-HH_srv %>%
+#     group_by(!!sym(strata),!!sym(severity_sub_components[[i]]), .drop=FALSE) %>%
+#     summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+#     ggplot(aes(x=as.factor(!!sym(strata)), y=mean.stat, fill=!!sym(severity_sub_components[[i]])))+
+#     geom_bar(position=position_dodge(), stat="identity", colour='black') +
+#     scale_fill_manual(values=severity_colors)+
+#     # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+#     geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+#     scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+#     labs(x=strata)+
+#     coord_flip()
+# }
+# 
+# severity_sub_component_graphs_overall<-list()
+# for(i in 1:length(severity_sub_components)){
+#   
+#   severity_sub_component_graphs_overall[[severity_sub_components[[i]]]]<-HH_srv %>%
+#     group_by(!!sym(severity_sub_components[[i]]), .drop=FALSE) %>%
+#     summarise(mean.stat=survey_mean(na.rm=TRUE, vartype="ci")) %>%
+#     ggplot(aes(x=!!sym(severity_sub_components[[i]]), y=mean.stat, fill=!!sym(severity_sub_components[[i]])))+
+#     geom_bar(position=position_dodge(), stat="identity", colour='black') +
+#     scale_fill_manual(values=severity_colors)+
+#     # colorspace::scale_fill_discrete_diverging (palette= " Green-Orange")+
+#     geom_errorbar(aes(ymin=mean.stat_low, ymax=mean.stat_upp), width=.2,position=position_dodge(.9))+
+#     scale_y_continuous(breaks=seq(0,1, by=0.1),labels = scales::percent_format(accuracy = 1))+
+#     labs(x="Overall")+
+#     coord_flip()
+# }
+# 

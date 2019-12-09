@@ -28,7 +28,9 @@ recode_FOODSECURITY_severity_bgd2019<- function(hh_data,individual_data, populat
                                              if_else(I.FCS_score>21,"poor",
                                                      "very_poor"))),
       # HDDS=rowSums(sapply(hh_data[,food_types], function(x) ifelse(x==7, TRUE,FALSE))),
+      I.FSL.HDDS_score_raw=rowSums(.[food_types],na.rm=TRUE),
       HDDS_over5=rowSums(sapply(hh_data[,food_types], function(x) ifelse(x>5, TRUE,FALSE))),
+      
       numfoods= rowSums(.[food_types], na.rm=TRUE),
       int.FS.HDDS_classified = if_else(HDDS_over5>=4, "acceptable",
                                        if_else(HDDS_over5>=3,"borderline",

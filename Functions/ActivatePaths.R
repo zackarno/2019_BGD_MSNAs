@@ -161,3 +161,4 @@ if(user=="zack"){
  
   long_lat<-c("X_gps_reading_longitude","X_gps_reading_latitude")
 wash_severity_combination_path<-"Inputs/WASH_Severity_Combo_Table.csv"}
+
