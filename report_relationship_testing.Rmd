@@ -40,7 +40,7 @@ rm(list=ls())
 user<-"zack"
 population<-c("Host","Refugee")[2]
 data_process<-c("checking", "cleaning", "analysis")[3]
-analysis_phase<-c("basic","relationship_testing")[2]
+analysis_phase<-c("basic")[1]
 
 
 # Setup -------------------------------------------------------------------
@@ -85,87 +85,58 @@ source("Functions/recoding_severity/calculate_INTERSECTORAL_severity_bgd2019.R")
 source("Functions/make_2019_vulnerability_composites.R")
 
 #LOAD DATA
-
 HH_kobo_questions<-read.csv(survey_path,stringsAsFactors = FALSE)
 HH_kobo_choices<-read.csv(choices_path, stringsAsFactors = FALSE)
+
+# FOR WASH
 wash_combo_table<-read.csv(wash_severity_combination_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
 wash_errors<- read.csv(wash_error_path,na.strings = c("", " "))
 
-
-
+# FOR PROTECTION
 incidents_per_camp<-read.csv("Inputs/DAPs/Severity Analysis_Protection_Reported Incidents per camp_REACH.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
 
 
-
-if (population=="Refugee"){
-  HH_with_env<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
-  analysis_phase<-c("basic","relationship_testing")[1]
-  source("Functions/ActivatePaths.R")
-  HH_clean_final<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
-  HH<-HH_clean_final %>% left_join(HH_with_env%>% select("X_uuid","euc_dist_to_camp_m", "dem_30m", "pop_dens_sqkm_per_grid_50_m", 
-                                                         "pop_dens_sqkm_per_grid_100_m", "pop_dens_sqkm_per_grid_200_m", 
-                                                         "shelters_per_grid_50_m", "shelters_per_grid_100_m", "shelters_per_grid_200_m"
-  ), by= "X_uuid")
-}
-
-if (population=="Host"){
-  HH<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))}
-
-
+# LOAD CLEAN DATA
+HH<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
 Indiv<-read.csv(Indiv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
+
+#QUESTIONNAIRE
 HH_kobo_questionnaire<-koboquest::load_questionnaire(HH,questions = HH_kobo_questions,choices = HH_kobo_choices, choices.label.column.to.use = "label..english")
+
+# LOAD POP DATA
 pop<- read.csv(pop_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
 
-#only yes consent
+# ONLY YES TO CONSENT
 HH_yes_consent<- HH %>% filter(informed_consent=="yes")
 indiv_yes_consent<-Indiv %>% filter(X_submission__uuid %in% HH_yes_consent$X_uuid)
-# debugonce(make_composite_indicators_bgd_msna_2019)
 
-
+# SOME MINOR FINAL DATA CLEANING
 enough_water_cols_to_fix<-HH_yes_consent %>% select(starts_with("enough_water")) %>% colnames()
 rows_to_fix<-which(HH_yes_consent$X_uuid %in% wash_errors$uuid)
 HH_yes_consent[rows_to_fix,enough_water_cols_to_fix] <-sapply(HH_yes_consent[rows_to_fix,enough_water_cols_to_fix],function(x)x<-NA) 
 
+#RELATIONSHIP TESTING DAP
 dap_relations<-readxl::read_xlsx(path = "Inputs/DAPs/MSNA Design - Sector Engagement.xlsx", sheet = "Analysis_Vulnerability and Rela")
 new_indicators<-readxl::read_xlsx(path =  "Inputs/DAPs/MSNA Design - Sector Engagement.xlsx",sheet = "reach_new_indicators") 
-new_indicators
-new_indicators%>% filter(`population group` %in% c("both", "HC only"))
 
-
-
+#MAKE COMPOSITE INDICATORS
 composite_indicators<-make_composite_indicators_bgd_msna_2019(hh_data = HH_yes_consent,  individual_data = indiv_yes_consent,population = population)
 HH_with_composite<-HH_yes_consent %>% left_join(composite_indicators$household_composites,by="X_uuid")
 
 Indiv_with_composite<-indiv_yes_consent %>% left_join(composite_indicators$individual_composites,by="X_index")
 HH_with_composite<-butteR::remove_concat_select_multiple(HH_with_composite,questionnaire = HH_kobo_questionnaire)
 
-# debugonce(recode_HEALTH_severity_bgd2019)
-
+# ONLY NEED PROTECTION AND SEVERITY INDICATORS FOR THIS ANALYSIS
 HH_severity<-HH_with_composite
-
-HH_severity<- recode_COPING_severity_bgd2019(HH_severity, individual_data = Indiv_with_composite, population=population)
-# debugonce(recode_WASH_severity_bgd2019)
-HH_severity<- recode_WASH_severity_bgd2019(HH_severity, individual_data = Indiv_with_composite, population=population, wash_combo_table = wash_combo_table)
+HH_severity<-recode_PROTECTION_severity_bgd2019(hh_data= HH_with_composite, individual_data=Indiv_with_composite, population=population)
 HH_severity<-recode_SNFI_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
-HH_severity<-recode_HEALTH_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
-HH_severity<-recode_EDUCATION_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
-HH_severity<-recode_PROTECTION_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
-HH_severity<-recode_FOODSECURITY_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
-
-all_sectoral_severity_scores<-HH_severity %>% select(intersect(starts_with("sev_score"), ends_with(".total"))) %>%colnames()
-
-HH_severity<-calculate_INTERSECTORAL_severity_bgd_msna2019(HH_severity,sectoral_scores =all_sectoral_severity_scores,coping_strategy_score = "sev_score.coping.total" )
 
 
+# NEW VULNERABILITY COMPOSITES
 HH_severity<-make_2019_msna_vulnerability_composites(HH_severity, new_indicators = new_indicators, individual_data = Indiv_with_composite)
 
 
 # weighting ---------------------------------------------------------------
-
-
-
-
-# CALCULATE WEIGHTS AND MAKE SURVEY
 
 if(population=="Refugee"){
   HH_severity<-HH_severity %>%
@@ -186,11 +157,6 @@ if(population=="Refugee"){
 } 
 
 
-
-
-pop$camp_id %in% HH_severity$camp_name
-which(HH_severity$camp_name %in% pop$camp_id ==FALSE)
-
 weighting<-map_to_weighting(sampling.frame = pop, 
                             data.stratum.column = strata,
                             data = HH_severity, 
@@ -205,7 +171,7 @@ Indiv_with_relevant_HH_data<-Indiv_with_composite %>% left_join(HH_svy_ob$variab
                                                                   mutate(
                                                                     weights= weights(HH_svy_ob)
                                                                     ) %>% 
-                                                                  select(X_uuid,{strata},respondent_gender,weights,euc_dist_to_camp_m), by=c("X_submission__uuid"="X_uuid"))
+                                                                  select(X_uuid,{strata},respondent_gender,weights), by=c("X_submission__uuid"="X_uuid"))
 
 ind_svy_ob<-survey::svydesign(ids = ~ 1,
                               strata =  formula(paste0("~",strata)),
@@ -220,10 +186,8 @@ ind_svy_ob<-survey::svydesign(ids = ~ 1,
 
 
 ```{r warnings=FALSE}
-
+#CLEAN UP DAP TO MAKE THIS EASIER
 colnames(dap_relations)<-colnames(dap_relations) %>% gsub(" ", "_",.)
-
-
 DAP<-dap_relations %>% rename(ind_var="REACH-specific:_Variable_name_(independent_var)",
                          dep_var= "REACH-specific:_Variable_name_(indicator)",
                          ind_var_label="Household_/_Respondent_Characteristic",
@@ -239,6 +203,8 @@ DAP<-dap_relations %>% rename(ind_var="REACH-specific:_Variable_name_(independen
   mutate(dep_leg_label=stringr::str_wrap(dep_var, width = 10),
          ind_leg_label=stringr::str_wrap(ind_var, width = 10),
          indicator_label=stringr::str_wrap(Indicator_of_interest, width=60))
+
+
 
 HH_srv<- srvyr::as_survey(HH_svy_ob)
 plot_list<-list()
@@ -286,7 +252,8 @@ for(i in 1: nrow(DAP)){
                     aes(ymin=mean.stat_low, 
                         ymax=mean.stat_upp),
                     position = position_dodge(width = 0.9), width = 0.1)+
-      geom_text(aes(y=max(mean.stat_upp)+.05,label= n,fontface=3), position = position_dodge(width = 0.9))+labs(x=dep_var_temp)+
+      geom_text(aes(y=max(mean.stat_upp)+.05,label= n,fontface=3), position = position_dodge(width = 0.9))+
+      geom_text(aes(y=0.05,label= paste0(round(mean.stat*100,1), " %"),fontface=3), size=3,position = position_dodge(width = 0.9))+labs(x=dep_var_temp)+
       ggtitle(paste0(indicator_label_temp," p value =",
                      chisq_pval_with_star))+
       theme_reach_base+ theme(axis.title.y = element_blank(),
@@ -319,22 +286,17 @@ invisible(capture.output(print(plots_2)))
 ## Host Community
 
 ```{r, include=FALSE}
-knitr::opts_chunk$set(
-	echo = TRUE,
-	message = FALSE,
-	warning = FALSE,
-	out.width = "100%"
-)
+
 population<-c("Host","Refugee")[1]
 data_process<-c("checking", "cleaning", "analysis")[3]
-analysis_phase<-c("basic","relationship_testing")[2]
+analysis_phase<-c("basic")[1]
 
 
 
 
 source("Functions/colours.R")
 source("Functions/ActivatePaths.R")
-source("Functions/make_composite_indicators_bgd_msna_2019_mk.R")
+source("Functions/make_composite_indicators_bgd_msna_2019_mk2.R")
 # source("Functions/make_composite_indicators_bgd_msna_2019.R")
 source("Functions/calculate_shelter_topology.R")
 source("Functions/general_utils.R")
@@ -361,22 +323,7 @@ wash_errors<- read.csv(wash_error_path,na.strings = c("", " "))
 incidents_per_camp<-read.csv("Inputs/DAPs/Severity Analysis_Protection_Reported Incidents per camp_REACH.csv", stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
 
 
-
-if (population=="Refugee"){
-  HH_with_env<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
-  analysis_phase<-c("basic","relationship_testing")[1]
-  source("Functions/ActivatePaths.R")
-  HH_clean_final<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
-  HH<-HH_clean_final %>% left_join(HH_with_env%>% select("X_uuid","euc_dist_to_camp_m", "dem_30m", "pop_dens_sqkm_per_grid_50_m", 
-                                                         "pop_dens_sqkm_per_grid_100_m", "pop_dens_sqkm_per_grid_200_m", 
-                                                         "shelters_per_grid_50_m", "shelters_per_grid_100_m", "shelters_per_grid_200_m"
-  ), by= "X_uuid")
-}
-
-if (population=="Host"){
-  HH<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))}
-
-
+HH<-read.csv(HH_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
 Indiv<-read.csv(Indiv_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA, "NA"))
 HH_kobo_questionnaire<-koboquest::load_questionnaire(HH,questions = HH_kobo_questions,choices = HH_kobo_choices, choices.label.column.to.use = "label..english")
 pop<- read.csv(pop_path, stringsAsFactors = FALSE, na.strings=c("", " ", NA))
@@ -406,20 +353,8 @@ HH_with_composite<-butteR::remove_concat_select_multiple(HH_with_composite,quest
 
 # debugonce(recode_HEALTH_severity_bgd2019)
 
-HH_severity<-HH_with_composite
-
-HH_severity<- recode_COPING_severity_bgd2019(HH_severity, individual_data = Indiv_with_composite, population=population)
-# debugonce(recode_WASH_severity_bgd2019)
-HH_severity<- recode_WASH_severity_bgd2019(HH_severity, individual_data = Indiv_with_composite, population=population, wash_combo_table = wash_combo_table)
-HH_severity<-recode_SNFI_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
-HH_severity<-recode_HEALTH_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
-HH_severity<-recode_EDUCATION_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
+HH_severity<-recode_SNFI_severity_bgd2019(hh_data= HH_with_composite, individual_data=Indiv_with_composite, population=population)
 HH_severity<-recode_PROTECTION_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
-HH_severity<-recode_FOODSECURITY_severity_bgd2019(hh_data= HH_severity, individual_data=Indiv_with_composite, population=population)
-
-all_sectoral_severity_scores<-HH_severity %>% select(intersect(starts_with("sev_score"), ends_with(".total"))) %>%colnames()
-
-HH_severity<-calculate_INTERSECTORAL_severity_bgd_msna2019(HH_severity,sectoral_scores =all_sectoral_severity_scores,coping_strategy_score = "sev_score.coping.total" )
 
 
 HH_severity<-make_2019_msna_vulnerability_composites(HH_severity, new_indicators = new_indicators, individual_data = Indiv_with_composite)
@@ -470,7 +405,7 @@ Indiv_with_relevant_HH_data<-Indiv_with_composite %>% left_join(HH_svy_ob$variab
                                                                   mutate(
                                                                     weights= weights(HH_svy_ob)
                                                                     ) %>% 
-                                                                  select(X_uuid,{strata},respondent_gender,weights,euc_dist_to_camp_m), by=c("X_submission__uuid"="X_uuid"))
+                                                                  select(X_uuid,{strata},respondent_gender,weights), by=c("X_submission__uuid"="X_uuid"))
 
 ind_svy_ob<-survey::svydesign(ids = ~ 1,
                               strata =  formula(paste0("~",strata)),
@@ -551,7 +486,8 @@ for(i in 1: nrow(DAP)){
                     aes(ymin=mean.stat_low, 
                         ymax=mean.stat_upp),
                     position = position_dodge(width = 0.9), width = 0.1)+
-      geom_text(aes(y=max(mean.stat_upp)+.05,label= n,fontface=3), position = position_dodge(width = 0.9))+labs(x=dep_var_temp)+
+      geom_text(aes(y=max(mean.stat_upp,na.rm=TRUE)+.05,label= n,fontface=3), position = position_dodge(width = 0.9))+
+      geom_text(aes(y=0.05,label= ifelse(!is.na(mean.stat),paste0(round(mean.stat*100,1), " %"), ""),fontface=3), size=3,position = position_dodge(width = 0.9))+labs(x=dep_var_temp)+
       ggtitle(paste0(indicator_label_temp," p value =",
                      chisq_pval_with_star))+
       theme_reach_base+ theme(axis.title.y = element_blank(),
