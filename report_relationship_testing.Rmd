@@ -512,8 +512,7 @@ for(i in 1: nrow(DAP)){
 Barplots with relationship testing results
 
 ```{r warnings=FALSE, echo=FALSE,}
-# htmltools::tagList(plots_2)
-# print(plots_2)
+
 
 invisible(capture.output(print(plots_2)))
 
