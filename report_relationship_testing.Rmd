@@ -197,7 +197,7 @@ DAP<-dap_relations %>% rename(ind_var="REACH-specific:_Variable_name_(independen
                                               "Host",missing="both")
     
   ) %>% 
-  filter(filter_action!="d", population_group%in%c(population,"both")) %>% 
+  filter(filter_action!="d"| population_group%in%c(population,"both")) %>% 
   select(Indicator_of_interest,ind_var_label,ind_var, dep_var,population_group) %>% 
   filter(!is.na(ind_var)& !is.na(dep_var)) %>% 
   mutate(dep_leg_label=stringr::str_wrap(dep_var, width = 10),
@@ -437,7 +437,7 @@ DAP<-dap_relations %>% rename(ind_var="REACH-specific:_Variable_name_(independen
                                               "Host",missing="both")
     
   ) %>% 
-  filter(filter_action!="d", population_group%in%c(population,"both")) %>% 
+  filter(population_group%in%c(population,"both")| filter_action!="d")%>% 
   select(Indicator_of_interest,ind_var_label,ind_var, dep_var,population_group) %>% 
   filter(!is.na(ind_var)& !is.na(dep_var)) %>% 
   mutate(dep_leg_label=stringr::str_wrap(dep_var, width = 10),
